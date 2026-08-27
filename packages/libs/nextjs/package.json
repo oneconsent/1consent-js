@@ -1,0 +1,64 @@
+{
+    "name": "@1consent/nextjs",
+    "version": "0.1.0-beta.0",
+    "description": "Next.js 16 adapter and server helpers for the 1Consent React integration.",
+    "type": "module",
+    "sideEffects": false,
+    "license": "MIT",
+    "keywords": [
+        "consent",
+        "cmp",
+        "privacy",
+        "nextjs",
+        "react",
+        "typescript"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/oneconsent/1consent-js.git",
+        "directory": "packages/libs/nextjs"
+    },
+    "homepage": "https://github.com/oneconsent/1consent-js/tree/main/packages/libs/nextjs#readme",
+    "bugs": {
+        "url": "https://github.com/oneconsent/1consent-js/issues"
+    },
+    "publishConfig": {
+        "access": "public",
+        "provenance": true,
+        "registry": "https://registry.npmjs.org/",
+        "tag": "beta"
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "files": [
+        "dist/index.js",
+        "dist/index.d.ts",
+        "dist/react-server.js",
+        "dist/react-server.d.ts",
+        "dist/server.js",
+        "dist/server.d.ts",
+        "dist/cookie.d.ts",
+        "dist/types.d.ts",
+        "README.md",
+        "LICENSE"
+    ],
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "react-server": "./dist/react-server.js",
+            "import": "./dist/index.js"
+        },
+        "./server": {
+            "types": "./dist/server.d.ts",
+            "import": "./dist/server.js"
+        }
+    },
+    "dependencies": {
+        "@1consent/react": "0.1.0-beta.0"
+    },
+    "peerDependencies": {
+        "next": ">=16.0.0 <17.0.0",
+        "react": ">=19.0.0",
+        "react-dom": ">=19.0.0"
+    }
+}

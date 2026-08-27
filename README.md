@@ -1,7 +1,8 @@
 # 1Consent JavaScript packages
 
 This public repository is the reviewable release and provenance record for the official
-[`@1consent/react`](https://www.npmjs.com/package/@1consent/react) and
+[`@1consent/react`](https://www.npmjs.com/package/@1consent/react),
+[`@1consent/nextjs`](https://www.npmjs.com/package/@1consent/nextjs), and
 [`@1consent/cli`](https://www.npmjs.com/package/@1consent/cli) packages.
 
 It intentionally contains only the files distributed through npm, public documentation,
@@ -9,10 +10,11 @@ verification code, and release automation. Private product source and private bu
 are not mirrored here. Every tracked release file is recorded by path, size, and SHA-256 digest in
 `public-release-manifest.json`.
 
-Both packages remain prerelease software. Install the current beta explicitly:
+All packages remain prerelease software. Install the current beta explicitly:
 
 ```sh
 npm install @1consent/react@beta
+npm install @1consent/nextjs@beta
 npx @1consent/cli@beta --help
 ```
 
@@ -26,7 +28,7 @@ npm run check:secrets
 npm run verify:npm-packages
 ```
 
-The verification checks the exact file manifest, inspects both npm tarballs, and installs and
+The verification checks the exact file manifest, inspects all three npm tarballs, and installs and
 executes them in a clean consumer project.
 
 The guarded beta release process is implemented in

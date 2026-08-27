@@ -106,7 +106,7 @@ jobs:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           expected_repository="git+https://github.com/${NPM_PUBLIC_SOURCE_REPOSITORY}.git"
-          for package_dir in packages/libs/react packages/libs/cli; do
+          for package_dir in packages/libs/react packages/libs/nextjs packages/libs/cli; do
             manifest="$package_dir/package.json"
             [[ "$(jq -r .version "$manifest")" == "$RELEASE_VERSION" ]]
             [[ "$(jq -r '.private // false' "$manifest")" == "false" ]]
@@ -144,6 +144,18 @@ jobs:
           fi
           npm publish --tag beta --access public --provenance
 
+      - name: Bootstrap @1consent/nextjs once
+        if: steps.registry.outputs.nextjs == 'bootstrap'
+        working-directory: packages/libs/nextjs
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+        run: |
+          if [[ -z "$NODE_AUTH_TOKEN" ]]; then
+            echo "NPM_BOOTSTRAP_TOKEN is required only for a package's first publication." >&2
+            exit 1
+          fi
+          npm publish --tag beta --access public --provenance
+
       - name: Bootstrap @1consent/cli once
         if: steps.registry.outputs.cli == 'bootstrap'
         working-directory: packages/libs/cli
@@ -161,6 +173,11 @@ jobs:
         working-directory: packages/libs/react
         run: npm stage publish --tag beta
 
+      - name: Stage @1consent/nextjs through OIDC
+        if: steps.registry.outputs.nextjs == 'stage'
+        working-directory: packages/libs/nextjs
+        run: npm stage publish --tag beta
+
       - name: Stage @1consent/cli through OIDC
         if: steps.registry.outputs.cli == 'stage'
         working-directory: packages/libs/cli
@@ -169,12 +186,14 @@ jobs:
       - name: Record the publication result
         env:
           CLI_STATE: ${{ steps.registry.outputs.cli }}
+          NEXTJS_STATE: ${{ steps.registry.outputs.nextjs }}
           REACT_STATE: ${{ steps.registry.outputs.react }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           {
             echo "## npm beta $RELEASE_VERSION"
             echo "- @1consent/react: $REACT_STATE"
+            echo "- @1consent/nextjs: $NEXTJS_STATE"
             echo "- @1consent/cli: $CLI_STATE"
             echo ""
             echo "Approve staged packages with npm 2FA, then rerun this workflow with operation=verify."
@@ -216,8 +235,8 @@ jobs:
         run: |
           set -euo pipefail
           registry_state="$(node scripts/npm-release-state.mts --version "$RELEASE_VERSION")"
-          if [[ "$registry_state" != $'react=published\ncli=published' ]]; then
-            echo "Both exact local tarballs must already own the npm beta channel." >&2
+          if [[ "$registry_state" != $'react=published\nnextjs=published\ncli=published' ]]; then
+            echo "All exact local tarballs must already own the npm beta channel." >&2
             printf '%s\n' "$registry_state" >&2
             exit 1
           fi
@@ -234,13 +253,18 @@ jobs:
           npm pkg set private=true type=module
           npm install --ignore-scripts --save-exact \
             "@1consent/react@$RELEASE_VERSION" \
+            "@1consent/nextjs@$RELEASE_VERSION" \
             "@1consent/cli@$RELEASE_VERSION" \
+            "next@^16.0.0" \
             "react@^19.0.0" \
+            "react-dom@^19.0.0" \
             "zod@^4.0.0"
           ./node_modules/.bin/1c --help | grep -q "Manage 1Consent"
           ./node_modules/.bin/1c typegen --help | grep -q -- "--app <shortId>"
           node --input-type=module --eval \
-            'import * as sdk from "@1consent/react"; import { designKit } from "@1consent/cli/design-kit"; for (const name of ["OneConsent", "OneConsentProvider", "useConsent"]) if (typeof sdk[name] !== "function") throw new Error(`Missing export ${name}`); if (typeof designKit !== "function") throw new Error("Missing designKit export");'
+            'import * as sdk from "@1consent/react"; import * as nextSdk from "@1consent/nextjs"; import { parseConsentCookie } from "@1consent/nextjs/server"; import { designKit } from "@1consent/cli/design-kit"; for (const name of ["OneConsent", "OneConsentProvider", "useConsent"]) { if (typeof sdk[name] !== "function") throw new Error(`Missing React export ${name}`); if (typeof nextSdk[name] !== "function") throw new Error(`Missing Next.js export ${name}`); } if (parseConsentCookie(undefined, {}, 0) !== "none") throw new Error("Next.js server helper did not fail closed"); if (typeof designKit !== "function") throw new Error("Missing designKit export");'
+          node --conditions=react-server --input-type=module --eval \
+            'import * as sdk from "@1consent/nextjs"; if ("useConsent" in sdk) throw new Error("Next.js RSC export leaks useConsent"); for (const name of ["OneConsent", "OneConsentProvider"]) if (typeof sdk[name] !== "function") throw new Error(`Missing Next.js RSC export ${name}`);'
           npm audit signatures --json --include-attestations > npm-audit-signatures.json
           node "$GITHUB_WORKSPACE/scripts/verify-npm-provenance.mts" \
             --audit-report npm-audit-signatures.json \
@@ -257,5 +281,5 @@ jobs:
         run: |
           {
             echo "## Verified npm beta $RELEASE_VERSION"
-            echo "Both scoped packages match the tagged tarballs, install and execute, own the beta dist-tag, and have npm-verified provenance bound to this repository, workflow, tag, commit, and protected environment."
+            echo "All three scoped packages match the tagged tarballs, install and execute, own the beta dist-tag, and have npm-verified provenance bound to this repository, workflow, tag, commit, and protected environment."
           } >> "$GITHUB_STEP_SUMMARY"

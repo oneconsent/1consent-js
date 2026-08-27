@@ -12,6 +12,7 @@ const BETA_VERSION =
     /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-beta\.(0|[1-9][0-9]*)$/;
 const RELEASE_PACKAGES = [
     ["react", "@1consent/react", "packages/libs/react"],
+    ["nextjs", "@1consent/nextjs", "packages/libs/nextjs"],
     ["cli", "@1consent/cli", "packages/libs/cli"],
 ] as const;
 const SHA512_INTEGRITY = /^sha512-[A-Za-z0-9+/]+={0,2}$/;

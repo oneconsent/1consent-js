@@ -25,6 +25,19 @@ export const PUBLIC_PACKAGE_FILES = {
         "dist/use-consent.d.ts",
         "package.json",
     ],
+    "packages/libs/nextjs": [
+        "LICENSE",
+        "README.md",
+        "dist/cookie.d.ts",
+        "dist/index.d.ts",
+        "dist/index.js",
+        "dist/react-server.d.ts",
+        "dist/react-server.js",
+        "dist/server.d.ts",
+        "dist/server.js",
+        "dist/types.d.ts",
+        "package.json",
+    ],
     "packages/libs/cli": [
         "LICENSE",
         "README.md",
@@ -122,7 +135,8 @@ function packageMetadata(root, directory) {
     if (!isRecord(manifest)) {
         throw new Error(`[PublicReleaseManifest] Invalid package manifest: ${directory}`);
     }
-    if (manifest.name !== `@1consent/${directory.endsWith("/react") ? "react" : "cli"}`) {
+    const packageName = directory.split("/").at(-1);
+    if (!packageName || manifest.name !== `@1consent/${packageName}`) {
         throw new Error(`[PublicReleaseManifest] Unexpected package identity: ${directory}`);
     }
     if (typeof manifest.version !== "string" || !/^0\.\d+\.\d+-beta\.\d+$/.test(manifest.version)) {
@@ -146,6 +160,13 @@ function packageMetadata(root, directory) {
     }
     if (manifest.repository?.url !== "git+https://github.com/oneconsent/1consent-js.git") {
         throw new Error(`[PublicReleaseManifest] Unexpected repository metadata in ${directory}`);
+    }
+    if (
+        packageName === "nextjs" &&
+        (manifest.dependencies?.["@1consent/react"] !== manifest.version ||
+            manifest.peerDependencies?.next !== ">=16.0.0 <17.0.0")
+    ) {
+        throw new Error("[PublicReleaseManifest] Next.js adapter dependency boundary drifted");
     }
     return { directory, name: manifest.name, version: manifest.version };
 }
@@ -198,7 +219,7 @@ export function createPublicReleaseManifest(root) {
         packageMetadata(normalizedRoot, directory),
     );
     if (new Set(packages.map(({ version }) => version)).size !== 1) {
-        throw new Error("[PublicReleaseManifest] React and CLI versions must match");
+        throw new Error("[PublicReleaseManifest] All public package versions must match");
     }
     const files = actualReleaseFiles.map((path) => fileRecord(normalizedRoot, path));
     return { schemaVersion: 1, packages, files };

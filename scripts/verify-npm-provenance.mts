@@ -3,7 +3,7 @@ import process from "node:process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const RELEASE_PACKAGES = ["@1consent/react", "@1consent/cli"] as const;
+const RELEASE_PACKAGES = ["@1consent/react", "@1consent/nextjs", "@1consent/cli"] as const;
 const SLSA_PREDICATE = "https://slsa.dev/provenance/v1";
 const IN_TOTO_STATEMENT = "https://in-toto.io/Statement/v1";
 const GITHUB_BUILD_TYPE =

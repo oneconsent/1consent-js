@@ -1,7 +1,8 @@
 # Contributing
 
 Open an issue before substantial changes so package compatibility and the public-release boundary
-can be agreed first. Pull requests must keep the React and CLI packages on the beta channel and pass:
+can be agreed first. Pull requests must keep the React, Next.js, and CLI packages on the beta
+channel and pass:
 
 ```sh
 npm test

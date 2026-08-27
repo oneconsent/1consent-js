@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 function packageManifest(name, directory) {
-    return {
+    const manifest = {
         name,
         version: "0.1.0-beta.0",
         repository: {
@@ -31,6 +31,11 @@ function packageManifest(name, directory) {
             tag: "beta",
         },
     };
+    if (name === "@1consent/nextjs") {
+        manifest.dependencies = { "@1consent/react": "0.1.0-beta.0" };
+        manifest.peerDependencies = { next: ">=16.0.0 <17.0.0" };
+    }
+    return manifest;
 }
 
 function fixture() {
@@ -46,7 +51,7 @@ function fixture() {
             const absolute = resolve(root, directory, path);
             mkdirSync(dirname(absolute), { recursive: true });
             if (path === "package.json") {
-                const name = directory.endsWith("/react") ? "@1consent/react" : "@1consent/cli";
+                const name = `@1consent/${directory.split("/").at(-1)}`;
                 writeFileSync(absolute, `${JSON.stringify(packageManifest(name, directory))}\n`);
             } else {
                 writeFileSync(absolute, `${directory}/${path}\n`);
@@ -90,6 +95,15 @@ test("rejects private build metadata in public package manifests", () => {
     manifest.devDependencies = { "@1consent/shared": "workspace:*" };
     writeFileSync(path, `${JSON.stringify(manifest)}\n`);
     assert.throws(() => writePublicReleaseManifest(root), /development dependencies/);
+});
+
+test("rejects a Next.js adapter that does not pin the matching React beta", () => {
+    const root = fixture();
+    const path = resolve(root, "packages/libs/nextjs/package.json");
+    const manifest = packageManifest("@1consent/nextjs", "packages/libs/nextjs");
+    manifest.dependencies["@1consent/react"] = "0.1.0-beta.1";
+    writeFileSync(path, `${JSON.stringify(manifest)}\n`);
+    assert.throws(() => writePublicReleaseManifest(root), /Next.js adapter dependency boundary/);
 });
 
 test("rejects an unreviewed internal service hostname", () => {

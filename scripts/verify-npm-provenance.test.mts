@@ -88,7 +88,7 @@ function auditReport(options: ExpectedProvenance = expected): unknown {
     return {
         invalid: [],
         missing: [],
-        verified: ["@1consent/react", "@1consent/cli"].map((name) => {
+        verified: ["@1consent/react", "@1consent/nextjs", "@1consent/cli"].map((name) => {
             const slash = name.indexOf("/");
             const purl = `pkg:npm/${encodeURIComponent(name.slice(0, slash))}/${encodeURIComponent(name.slice(slash + 1))}@${options.version}`;
             const statement = {
