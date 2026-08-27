@@ -20,13 +20,13 @@
     },
     {
       "path": ".github/workflows/publish-npm.yml",
-      "bytes": 9896,
-      "sha256": "c668779db01215614da8257213cfb0e03f386e86183f7e8cf756c1a16c6bdaba"
+      "bytes": 10035,
+      "sha256": "c4bcd70f75158afa78045ecb7bc9f344294d433461d1695d9de638754695b309"
     },
     {
       "path": ".github/workflows/quality.yml",
-      "bytes": 835,
-      "sha256": "53cad11863f69482533a7ba8e7509ec58eb9e2063446802fa8aeb0ce3b3f3f31"
+      "bytes": 886,
+      "sha256": "9756babdf09676e930ce3e9a011eac3843ed1c16c5fd84c055496ff89e3f175a"
     },
     {
       "path": ".gitignore",
