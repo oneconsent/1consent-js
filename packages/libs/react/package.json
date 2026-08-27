@@ -1,0 +1,57 @@
+{
+    "name": "@1consent/react",
+    "version": "0.1.0-beta.0",
+    "description": "React 19 consent components and hooks for the 1Consent CMP.",
+    "type": "module",
+    "sideEffects": false,
+    "license": "MIT",
+    "keywords": [
+        "consent",
+        "cmp",
+        "privacy",
+        "react",
+        "typescript"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/oneconsent/1consent-js.git",
+        "directory": "packages/libs/react"
+    },
+    "homepage": "https://github.com/oneconsent/1consent-js/tree/main/packages/libs/react#readme",
+    "bugs": {
+        "url": "https://github.com/oneconsent/1consent-js/issues"
+    },
+    "publishConfig": {
+        "access": "public",
+        "provenance": true,
+        "registry": "https://registry.npmjs.org/",
+        "tag": "beta"
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "files": [
+        "dist/index.js",
+        "dist/index.d.ts",
+        "dist/react-server.js",
+        "dist/react-server.d.ts",
+        "dist/one-consent.d.ts",
+        "dist/provider.d.ts",
+        "dist/types.d.ts",
+        "dist/use-consent.d.ts",
+        "README.md",
+        "LICENSE"
+    ],
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "react-server": "./dist/react-server.js",
+            "import": "./dist/index.js"
+        }
+    },
+    "peerDependencies": {
+        "react": ">=19.0.0"
+    },
+    "dependencies": {
+        "zod": "^4.4.3"
+    }
+}

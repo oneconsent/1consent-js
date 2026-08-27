@@ -1,0 +1,16 @@
+{
+    "name": "1consent-js",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Reviewed distribution artifacts and provenance for the official 1Consent JavaScript packages.",
+    "license": "MIT",
+    "repository": "github:oneconsent/1consent-js",
+    "engines": {
+        "node": ">=24.0.0"
+    },
+    "scripts": {
+        "check:secrets": "node --test scripts/check-secrets.test.mjs && node scripts/check-secrets.mjs",
+        "test": "node --test scripts/*.test.mjs scripts/*.test.mts",
+        "verify:npm-packages": "node scripts/public-release-manifest.mjs && node scripts/smoke-public-packages.mjs"
+    }
+}

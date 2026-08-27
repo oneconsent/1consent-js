@@ -1,0 +1,60 @@
+{
+    "name": "@1consent/cli",
+    "version": "0.1.0-beta.0",
+    "description": "The official 1Consent CLI for design sync, publishing, and generated React consent types.",
+    "type": "module",
+    "license": "MIT",
+    "keywords": [
+        "cli",
+        "consent",
+        "cmp",
+        "privacy",
+        "typescript"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/oneconsent/1consent-js.git",
+        "directory": "packages/libs/cli"
+    },
+    "homepage": "https://github.com/oneconsent/1consent-js/tree/main/packages/libs/cli#readme",
+    "bugs": {
+        "url": "https://github.com/oneconsent/1consent-js/issues"
+    },
+    "engines": {
+        "node": ">=22.0.0"
+    },
+    "publishConfig": {
+        "access": "public",
+        "provenance": true,
+        "registry": "https://registry.npmjs.org/",
+        "tag": "beta"
+    },
+    "files": [
+        "dist/cli.js",
+        "dist/design-kit/index.js",
+        "dist/design-kit/index.d.ts",
+        "dist/design-kit/runtime.js",
+        "dist/design-kit/ui/index.html",
+        "dist/design-kit/ui/assets/index.js",
+        "dist/design-kit/ui/assets/index.css",
+        "README.md",
+        "LICENSE"
+    ],
+    "exports": {
+        "./design-kit": {
+            "types": "./dist/design-kit/index.d.ts",
+            "import": "./dist/design-kit/index.js"
+        }
+    },
+    "bin": {
+        "1c": "./dist/cli.js"
+    },
+    "peerDependencies": {
+        "vite": ">=8.0.0 <9.0.0"
+    },
+    "peerDependenciesMeta": {
+        "vite": {
+            "optional": true
+        }
+    }
+}

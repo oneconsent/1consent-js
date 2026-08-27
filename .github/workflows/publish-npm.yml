@@ -1,0 +1,256 @@
+name: Publish npm beta
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Stage/publish the selected beta tag, or verify it after npm approval
+        required: true
+        default: publish
+        type: choice
+        options:
+          - publish
+          - verify
+
+permissions:
+  contents: read
+
+env:
+  NPM_PUBLIC_SOURCE_REPOSITORY: oneconsent/1consent-js
+
+concurrency:
+  group: npm-beta-release-lane
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Validate immutable beta tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Derive the prerelease version
+        id: release
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if [[ "$REF_TYPE" != "tag" ]]; then
+            echo "Select an immutable npm-v<version> tag when dispatching this workflow." >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_TAG" =~ ^npm-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-beta\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Tag must be a beta prerelease such as npm-v0.1.0-beta.0." >&2
+            exit 1
+          fi
+          echo "version=${RELEASE_TAG#npm-v}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout complete release history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Require the tagged commit to be reviewed on main
+        run: |
+          tagged_commit="$(git rev-parse "${GITHUB_SHA}^{commit}")"
+          if ! git merge-base --is-ancestor "$tagged_commit" "refs/remotes/origin/main"; then
+            echo "The npm release tag must point to a commit contained in main." >&2
+            exit 1
+          fi
+
+  publish:
+    name: Build and stage npm beta
+    if: inputs.operation == 'publish'
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: npm-beta
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout tagged release
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Require a public provenance release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$GITHUB_REPOSITORY" != "$NPM_PUBLIC_SOURCE_REPOSITORY" ]]; then
+            echo "Publishing is restricted to $NPM_PUBLIC_SOURCE_REPOSITORY; refusing $GITHUB_REPOSITORY." >&2
+            exit 1
+          fi
+          visibility="$(gh api "repos/${GITHUB_REPOSITORY}" --jq .visibility)"
+          if [[ "$visibility" != "public" ]]; then
+            echo "npm provenance requires this tagged release repository to be public." >&2
+            exit 1
+          fi
+
+      - name: Set up Node.js for trusted publishing
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Install the verified npm release CLI
+        run: npm install --global npm@12.0.2
+
+      - name: Validate beta package manifests
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          expected_repository="git+https://github.com/${NPM_PUBLIC_SOURCE_REPOSITORY}.git"
+          for package_dir in packages/libs/react packages/libs/cli; do
+            manifest="$package_dir/package.json"
+            [[ "$(jq -r .version "$manifest")" == "$RELEASE_VERSION" ]]
+            [[ "$(jq -r '.private // false' "$manifest")" == "false" ]]
+            [[ "$(jq -r .repository.url "$manifest")" == "$expected_repository" ]]
+            [[ "$(jq -r .publishConfig.access "$manifest")" == "public" ]]
+            [[ "$(jq -r .publishConfig.provenance "$manifest")" == "true" ]]
+            [[ "$(jq -r .publishConfig.registry "$manifest")" == "https://registry.npmjs.org/" ]]
+            [[ "$(jq -r .publishConfig.tag "$manifest")" == "beta" ]]
+          done
+
+      - name: Scan the exact tracked release
+        run: npm run check:secrets
+
+      - name: Run release-boundary tests
+        run: npm test
+
+      - name: Verify exact artifacts and clean tarball installation
+        run: npm run verify:npm-packages
+
+      - name: Detect idempotent registry actions
+        id: registry
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: node scripts/npm-release-state.mts --version "$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Bootstrap @1consent/react once
+        if: steps.registry.outputs.react == 'bootstrap'
+        working-directory: packages/libs/react
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+        run: |
+          if [[ -z "$NODE_AUTH_TOKEN" ]]; then
+            echo "NPM_BOOTSTRAP_TOKEN is required only for a package's first publication." >&2
+            exit 1
+          fi
+          npm publish --tag beta --access public --provenance
+
+      - name: Bootstrap @1consent/cli once
+        if: steps.registry.outputs.cli == 'bootstrap'
+        working-directory: packages/libs/cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+        run: |
+          if [[ -z "$NODE_AUTH_TOKEN" ]]; then
+            echo "NPM_BOOTSTRAP_TOKEN is required only for a package's first publication." >&2
+            exit 1
+          fi
+          npm publish --tag beta --access public --provenance
+
+      - name: Stage @1consent/react through OIDC
+        if: steps.registry.outputs.react == 'stage'
+        working-directory: packages/libs/react
+        run: npm stage publish --tag beta
+
+      - name: Stage @1consent/cli through OIDC
+        if: steps.registry.outputs.cli == 'stage'
+        working-directory: packages/libs/cli
+        run: npm stage publish --tag beta
+
+      - name: Record the publication result
+        env:
+          CLI_STATE: ${{ steps.registry.outputs.cli }}
+          REACT_STATE: ${{ steps.registry.outputs.react }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          {
+            echo "## npm beta $RELEASE_VERSION"
+            echo "- @1consent/react: $REACT_STATE"
+            echo "- @1consent/cli: $CLI_STATE"
+            echo ""
+            echo "Approve staged packages with npm 2FA, then rerun this workflow with operation=verify."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  verify:
+    name: Verify public registry and provenance
+    if: inputs.operation == 'verify'
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout tagged release
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js for registry verification
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Install the verified npm release CLI
+        run: npm install --global npm@12.0.2
+
+      - name: Reverify the exact tagged release
+        run: |
+          npm run check:secrets
+          npm test
+          npm run verify:npm-packages
+
+      - name: Bind registry versions to the tagged tarballs
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          registry_state="$(node scripts/npm-release-state.mts --version "$RELEASE_VERSION")"
+          if [[ "$registry_state" != $'react=published\ncli=published' ]]; then
+            echo "Both exact local tarballs must already own the npm beta channel." >&2
+            printf '%s\n' "$registry_state" >&2
+            exit 1
+          fi
+
+      - name: Install, execute, and verify exact release provenance
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          consumer_dir="$(mktemp -d)"
+          trap 'rm -rf "$consumer_dir"' EXIT
+          cd "$consumer_dir"
+          npm init --yes
+          npm pkg set private=true type=module
+          npm install --ignore-scripts --save-exact \
+            "@1consent/react@$RELEASE_VERSION" \
+            "@1consent/cli@$RELEASE_VERSION" \
+            "react@^19.0.0" \
+            "zod@^4.0.0"
+          ./node_modules/.bin/1c --help | grep -q "Manage 1Consent"
+          ./node_modules/.bin/1c typegen --help | grep -q -- "--app <shortId>"
+          node --input-type=module --eval \
+            'import * as sdk from "@1consent/react"; import { designKit } from "@1consent/cli/design-kit"; for (const name of ["OneConsent", "OneConsentProvider", "useConsent"]) if (typeof sdk[name] !== "function") throw new Error(`Missing export ${name}`); if (typeof designKit !== "function") throw new Error("Missing designKit export");'
+          npm audit signatures --json --include-attestations > npm-audit-signatures.json
+          node "$GITHUB_WORKSPACE/scripts/verify-npm-provenance.mts" \
+            --audit-report npm-audit-signatures.json \
+            --version "$RELEASE_VERSION" \
+            --repository "$NPM_PUBLIC_SOURCE_REPOSITORY" \
+            --workflow .github/workflows/publish-npm.yml \
+            --ref "$GITHUB_REF" \
+            --commit "$GITHUB_SHA" \
+            --environment npm-beta
+
+      - name: Record verified public installation
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          {
+            echo "## Verified npm beta $RELEASE_VERSION"
+            echo "Both scoped packages match the tagged tarballs, install and execute, own the beta dist-tag, and have npm-verified provenance bound to this repository, workflow, tag, commit, and protected environment."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,212 @@
+{
+  "schemaVersion": 1,
+  "packages": [
+    {
+      "directory": "packages/libs/react",
+      "name": "@1consent/react",
+      "version": "0.1.0-beta.0"
+    },
+    {
+      "directory": "packages/libs/cli",
+      "name": "@1consent/cli",
+      "version": "0.1.0-beta.0"
+    }
+  ],
+  "files": [
+    {
+      "path": ".github/dependabot.yml",
+      "bytes": 144,
+      "sha256": "5e54c7e473646e7b15345ac8dc7749922495be1cac57135cdf3cde5e4d20911f"
+    },
+    {
+      "path": ".github/workflows/publish-npm.yml",
+      "bytes": 9896,
+      "sha256": "c668779db01215614da8257213cfb0e03f386e86183f7e8cf756c1a16c6bdaba"
+    },
+    {
+      "path": ".github/workflows/quality.yml",
+      "bytes": 835,
+      "sha256": "53cad11863f69482533a7ba8e7509ec58eb9e2063446802fa8aeb0ce3b3f3f31"
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 62,
+      "sha256": "50106aa41deed29cb69a51f3213bfc5272a84e8f33e590f5a00ce025ea27b93b"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "bytes": 539,
+      "sha256": "00535f5314573eb9749d2cf4d71017ea63e1110a9a0a508c7f794d18a8e05876"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 1065,
+      "sha256": "54b026ed7c04d6dd321eb02bb85310b6ef4cea6a73d876ce2f98c30ccd59bbe7"
+    },
+    {
+      "path": "README.md",
+      "bytes": 1228,
+      "sha256": "131f64c7de7b4be61fa7743efd9eaa93f52d092f731af195be76ec43c944e139"
+    },
+    {
+      "path": "SECURITY.md",
+      "bytes": 448,
+      "sha256": "6d12ee9b4a70239de7adb62afe8b7b9422b8364440afed9b04d34ff7dc1aef8f"
+    },
+    {
+      "path": "package.json",
+      "bytes": 629,
+      "sha256": "71d161ef114958f515d940012d02ab237251f5a9bc8a3e1cb8a24abaebf4562e"
+    },
+    {
+      "path": "packages/libs/cli/LICENSE",
+      "bytes": 1065,
+      "sha256": "54b026ed7c04d6dd321eb02bb85310b6ef4cea6a73d876ce2f98c30ccd59bbe7"
+    },
+    {
+      "path": "packages/libs/cli/README.md",
+      "bytes": 1268,
+      "sha256": "8f3865a405fbc0c47c871f80514255f42d078bda805db9fa76bc8d6f69310e89"
+    },
+    {
+      "path": "packages/libs/cli/dist/cli.js",
+      "bytes": 865964,
+      "sha256": "2c7c5f04c92f07ddf3c84b472d342b0f99c9ad5fc4051d1007c435aba56e143e"
+    },
+    {
+      "path": "packages/libs/cli/dist/design-kit/index.d.ts",
+      "bytes": 376,
+      "sha256": "3ff120fcec413f2c92b6adbd417d963d9f789d41b164a35032bbd405ce2a7990"
+    },
+    {
+      "path": "packages/libs/cli/dist/design-kit/index.js",
+      "bytes": 761209,
+      "sha256": "4d03b503ac2d70beba5e4790ab8749f3f1a0b4e6e51cb977317a8aa18f441b43"
+    },
+    {
+      "path": "packages/libs/cli/dist/design-kit/runtime.js",
+      "bytes": 141192,
+      "sha256": "6bed2b02ccf7c2712525f7a02c047e94aab2d0df3ce8016211225fd3ad9da043"
+    },
+    {
+      "path": "packages/libs/cli/dist/design-kit/ui/assets/index.css",
+      "bytes": 65736,
+      "sha256": "d40bea6ccc366c2dff946da05520273ceac3a7a70936a874bf79643424b4eb40"
+    },
+    {
+      "path": "packages/libs/cli/dist/design-kit/ui/assets/index.js",
+      "bytes": 402072,
+      "sha256": "5ae5ddc3f6ef1cbb44b04b30b8eb3950e4b83addbe862c47a650b3c4966f55f2"
+    },
+    {
+      "path": "packages/libs/cli/dist/design-kit/ui/index.html",
+      "bytes": 590,
+      "sha256": "f0d3e1e04be6a34e7e3f309f3651840dd20725305f5cc9f073175d1b86d8d78b"
+    },
+    {
+      "path": "packages/libs/cli/package.json",
+      "bytes": 1589,
+      "sha256": "e8cb5d324a93de303a3044d571bdd41d30f3e108e91d33d59c09c29764d6643d"
+    },
+    {
+      "path": "packages/libs/react/LICENSE",
+      "bytes": 1065,
+      "sha256": "54b026ed7c04d6dd321eb02bb85310b6ef4cea6a73d876ce2f98c30ccd59bbe7"
+    },
+    {
+      "path": "packages/libs/react/README.md",
+      "bytes": 1493,
+      "sha256": "5cb6c0c80ae696c0263504a1e5059e9c65a7c5659ce53e0ad91d859cfc7890f2"
+    },
+    {
+      "path": "packages/libs/react/dist/index.d.ts",
+      "bytes": 659,
+      "sha256": "0427582260bfa6234125981f584b52bbe176884a1faf7f295e3b8ed391c80ca6"
+    },
+    {
+      "path": "packages/libs/react/dist/index.js",
+      "bytes": 27067,
+      "sha256": "2e96210298922028773ac20984e14eab2e51903b03219e4054d6a18dfc139cab"
+    },
+    {
+      "path": "packages/libs/react/dist/one-consent.d.ts",
+      "bytes": 2574,
+      "sha256": "55cdbcbe76e3179ee502fd926c43f93fcb279ba734d36d4f370e16e10092145e"
+    },
+    {
+      "path": "packages/libs/react/dist/provider.d.ts",
+      "bytes": 1905,
+      "sha256": "6ca894d397f74640824fbcf12976a2c94b14f44fb90119eae4f90affb9a07c07"
+    },
+    {
+      "path": "packages/libs/react/dist/react-server.d.ts",
+      "bytes": 722,
+      "sha256": "19390fec46e08142a92bd51e2713ab09820a54940f0012ecafbdb671fcc25958"
+    },
+    {
+      "path": "packages/libs/react/dist/react-server.js",
+      "bytes": 16657,
+      "sha256": "b04c6b9361fcd3ee9a5980ebed4a01c4e0b70b9c2c381b9c6ef7f715e9cf6a65"
+    },
+    {
+      "path": "packages/libs/react/dist/types.d.ts",
+      "bytes": 980,
+      "sha256": "876b3a8a4309a8b4293777899eed057e1ddb46d505e022ae9340e1f14d7507b7"
+    },
+    {
+      "path": "packages/libs/react/dist/use-consent.d.ts",
+      "bytes": 293,
+      "sha256": "e90040277cec9ee2bf96e85c4e6fcedb328ce3d8450de95f83afd07116476ae7"
+    },
+    {
+      "path": "packages/libs/react/package.json",
+      "bytes": 1504,
+      "sha256": "2b4f60a2dd0c07079df6b866536ce5056c4d2a2ae8cc9686d511e5f2f827fb0e"
+    },
+    {
+      "path": "scripts/check-secrets.mjs",
+      "bytes": 5271,
+      "sha256": "fb5757a84ac9134a0d492454ba68dd9d59022014ed8392eacb59ff262376feca"
+    },
+    {
+      "path": "scripts/check-secrets.test.mjs",
+      "bytes": 6360,
+      "sha256": "e98f88c38cd50de984f5d26e2d2c0255c07d0bb8c6e36d3f9ef0f643505875dd"
+    },
+    {
+      "path": "scripts/npm-release-state.mts",
+      "bytes": 9307,
+      "sha256": "e5bbfeb21bb60e1b26c5788f95da32f704ebeafd821b56d2bffc3bd802308608"
+    },
+    {
+      "path": "scripts/npm-release-state.test.mts",
+      "bytes": 6280,
+      "sha256": "c5c6f78c100aabd8795068eea24d9d1cd979d8a4264fa06ada3a2e243126b7ee"
+    },
+    {
+      "path": "scripts/public-release-manifest.mjs",
+      "bytes": 9090,
+      "sha256": "a34147c7ba87eb4e3d34aff8bdb021ce8fb9d8d18450fb7ca5009bc7b7a8f6c4"
+    },
+    {
+      "path": "scripts/public-release-manifest.test.mjs",
+      "bytes": 3939,
+      "sha256": "2813a2e75ed43f92dc39bbe4e4d965de01f5a458f88dfc38b3ac99f897892e2d"
+    },
+    {
+      "path": "scripts/smoke-public-packages.mjs",
+      "bytes": 4658,
+      "sha256": "7ec73db7aaa5ada82be1b4872f4c7de86eaffe016d52b32c5ed3c32cb25269c8"
+    },
+    {
+      "path": "scripts/verify-npm-provenance.mts",
+      "bytes": 21046,
+      "sha256": "d3413c2ae2e1c8887d7456a5d19c406df019a9b8d5d22d325ea0c7c52c2f815c"
+    },
+    {
+      "path": "scripts/verify-npm-provenance.test.mts",
+      "bytes": 9887,
+      "sha256": "8f09deb20d2b4530c310c72644ef18db58743f84d3d968e8290a72d2dc0f171f"
+    }
+  ]
+}
