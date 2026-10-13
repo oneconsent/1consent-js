@@ -50,8 +50,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 1710,
-      "sha256": "31c0e90fa0ab5a108d865829ef5614f08f40337632c5d3dbeb00da19502f8313"
+      "bytes": 2655,
+      "sha256": "47820e0461e170fa0c282984498f6b3ba87d1f4d1784719981524f70676a1fbc"
     },
     {
       "path": "SECURITY.md",
@@ -70,8 +70,8 @@
     },
     {
       "path": "packages/libs/cli/README.md",
-      "bytes": 1268,
-      "sha256": "8f3865a405fbc0c47c871f80514255f42d078bda805db9fa76bc8d6f69310e89"
+      "bytes": 1712,
+      "sha256": "71f318e27153705245dd0530581950bf5063d97695209f10ed192518d286f6dd"
     },
     {
       "path": "packages/libs/cli/dist/cli.js",
@@ -120,8 +120,8 @@
     },
     {
       "path": "packages/libs/nextjs/README.md",
-      "bytes": 2017,
-      "sha256": "a9ed25c991df2d6486512abc71039b63a0f0c4b5e30f60175fac2cc584e98d32"
+      "bytes": 2533,
+      "sha256": "fd1adc563069469ae286a0afe4e1ef70309fc182c96358a82ff5fb5e2be8d01b"
     },
     {
       "path": "packages/libs/nextjs/dist/cookie.d.ts",
@@ -175,8 +175,8 @@
     },
     {
       "path": "packages/libs/react/README.md",
-      "bytes": 1493,
-      "sha256": "5cb6c0c80ae696c0263504a1e5059e9c65a7c5659ce53e0ad91d859cfc7890f2"
+      "bytes": 1845,
+      "sha256": "adc99ecc695cf01a8a7e76b9180d36411e15756c8ac34a15b78f033738b1b9f1"
     },
     {
       "path": "packages/libs/react/dist/index.d.ts",

@@ -1,22 +1,38 @@
 # 1Consent JavaScript packages
 
-This public repository is the reviewable release and provenance record for the official
-[`@1consent/react`](https://www.npmjs.com/package/@1consent/react),
-[`@1consent/nextjs`](https://www.npmjs.com/package/@1consent/nextjs), and
-[`@1consent/cli`](https://www.npmjs.com/package/@1consent/cli) packages.
+Integrate a configured 1Consent CMP into React and Next.js applications, gate third-party
+markup by consent, and generate typed service and category names with the CLI.
 
-It intentionally contains only the files distributed through npm, public documentation,
-verification code, and release automation. Private product source and private build dependencies
-are not mirrored here. Every tracked release file is recorded by path, size, and SHA-256 digest in
-`public-release-manifest.json`.
+| Package | Purpose | Requirements |
+| --- | --- | --- |
+| [`@1consent/react`](packages/libs/react/README.md) | Consent provider, markup gates, and reactive consent hook | React 19+ |
+| [`@1consent/nextjs`](packages/libs/nextjs/README.md) | App Router integration and server cookie helpers | Next.js 16, React and React DOM 19+ |
+| [`@1consent/cli`](packages/libs/cli/README.md) | Design synchronization and consent type generation | Node.js 22+; Vite 8 for Design Kit authoring |
 
-All packages remain prerelease software. Install the current beta explicitly:
+You need a 1Consent application ID and published CMP configuration. Service and category names
+used in your integration must match that configuration. The provider loads the hosted CMP;
+these packages provide the framework integration and tooling.
+
+## Release status and installation
+
+The first release, `0.1.0-beta.0`, is prepared but has not yet been published or verified against
+the public npm registry. The commands below become supported after npm approval and registry
+verification. All packages are prerelease software; install the `beta` channel explicitly:
 
 ```sh
 npm install @1consent/react@beta
 npm install @1consent/nextjs@beta
 npx @1consent/cli@beta --help
 ```
+
+## What this repository contains
+
+This is the public release and provenance record for the three packages.
+
+It intentionally contains only the files distributed through npm, public documentation,
+verification code, and release automation. Private product source and private build dependencies
+are not mirrored here. Every tracked release file is recorded by path, size, and SHA-256 digest in
+`public-release-manifest.json`.
 
 ## Verify the release artifacts
 

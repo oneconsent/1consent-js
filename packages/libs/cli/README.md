@@ -7,9 +7,10 @@ and framework-associated fast-path versions.
 ## Distribution status
 
 The first supported release line is `0.1.0-beta.*` on npm's `beta` dist-tag.
-The package is publishable only from the protected, provenance-backed release
-workflow after its public source repository and npm trusted publisher are
-configured. The unscoped npm package `1c` belongs to an unrelated project;
+The protected public-repository workflow stages each release with provenance
+for a maintainer's npm 2FA approval. The first release uses a short-lived
+stage-only token; later releases use trusted publishing.
+The unscoped npm package `1c` belongs to an unrelated project;
 never direct customers to `npx 1c`.
 
 After registry verification, the supported beta invocation is:
@@ -27,3 +28,16 @@ monorepo's internal Design Kit or contracts packages. The plugin supports Vite
 frontend build tool they never use.
 
 Run `1c --help` for the source-backed command reference.
+
+## Before publication
+
+The CLI requires Node.js 22 or newer. From this repository's root, pack the
+reviewed artifact into an existing directory:
+
+```sh
+npm pack ./packages/libs/cli --pack-destination /path/to/tarballs
+```
+
+Install that tarball in a test project and run `./node_modules/.bin/1c --help`
+there. The public registry invocation remains the scoped
+`npx @1consent/cli@beta` command above.
