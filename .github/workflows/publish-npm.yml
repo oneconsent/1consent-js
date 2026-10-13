@@ -11,6 +11,14 @@ on:
         options:
           - publish
           - verify
+      publisher:
+        description: Use a stage-only token for the first release, then the configured trusted publisher
+        required: true
+        default: trusted-publisher
+        type: choice
+        options:
+          - trusted-publisher
+          - bootstrap-token
 
 permissions:
   contents: read
@@ -99,7 +107,7 @@ jobs:
           package-manager-cache: false
 
       - name: Install the verified npm release CLI
-        run: npm install --global npm@12.0.2
+        run: npm install --global npm@12.2.0
 
       - name: Validate beta package manifests
         env:
@@ -130,58 +138,47 @@ jobs:
         id: registry
         env:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
-        run: node scripts/npm-release-state.mts --version "$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+          PUBLISHER_MODE: ${{ inputs.publisher }}
+        run: node scripts/npm-release-state.mts --version "$RELEASE_VERSION" --publisher "$PUBLISHER_MODE" >> "$GITHUB_OUTPUT"
 
-      - name: Bootstrap @1consent/react once
-        if: steps.registry.outputs.react == 'bootstrap'
-        working-directory: packages/libs/react
+      - name: Stage reviewed packages for npm 2FA approval
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+          PUBLISHER_MODE: ${{ inputs.publisher }}
+          NPM_BOOTSTRAP_TOKEN: ${{ inputs.publisher == 'bootstrap-token' && secrets.NPM_BOOTSTRAP_TOKEN || '' }}
+          REACT_STATE: ${{ steps.registry.outputs.react }}
+          NEXTJS_STATE: ${{ steps.registry.outputs.nextjs }}
+          CLI_STATE: ${{ steps.registry.outputs.cli }}
         run: |
-          if [[ -z "$NODE_AUTH_TOKEN" ]]; then
-            echo "NPM_BOOTSTRAP_TOKEN is required only for a package's first publication." >&2
+          set -euo pipefail
+          if [[ "$PUBLISHER_MODE" == "bootstrap-token" ]]; then
+            if [[ -z "$NPM_BOOTSTRAP_TOKEN" ]]; then
+              echo "NPM_BOOTSTRAP_TOKEN must be a stage-only token without 2FA bypass." >&2
+              exit 1
+            fi
+            export NODE_AUTH_TOKEN="$NPM_BOOTSTRAP_TOKEN"
+          elif [[ "$PUBLISHER_MODE" == "trusted-publisher" ]]; then
+            unset NODE_AUTH_TOKEN
+          else
+            echo "Unknown npm publisher mode." >&2
             exit 1
           fi
-          npm publish --tag beta --access public --provenance
-
-      - name: Bootstrap @1consent/nextjs once
-        if: steps.registry.outputs.nextjs == 'bootstrap'
-        working-directory: packages/libs/nextjs
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
-        run: |
-          if [[ -z "$NODE_AUTH_TOKEN" ]]; then
-            echo "NPM_BOOTSTRAP_TOKEN is required only for a package's first publication." >&2
-            exit 1
-          fi
-          npm publish --tag beta --access public --provenance
-
-      - name: Bootstrap @1consent/cli once
-        if: steps.registry.outputs.cli == 'bootstrap'
-        working-directory: packages/libs/cli
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
-        run: |
-          if [[ -z "$NODE_AUTH_TOKEN" ]]; then
-            echo "NPM_BOOTSTRAP_TOKEN is required only for a package's first publication." >&2
-            exit 1
-          fi
-          npm publish --tag beta --access public --provenance
-
-      - name: Stage @1consent/react through OIDC
-        if: steps.registry.outputs.react == 'stage'
-        working-directory: packages/libs/react
-        run: npm stage publish --tag beta
-
-      - name: Stage @1consent/nextjs through OIDC
-        if: steps.registry.outputs.nextjs == 'stage'
-        working-directory: packages/libs/nextjs
-        run: npm stage publish --tag beta
-
-      - name: Stage @1consent/cli through OIDC
-        if: steps.registry.outputs.cli == 'stage'
-        working-directory: packages/libs/cli
-        run: npm stage publish --tag beta
+          package_names=(react nextjs cli)
+          registry_states=("$REACT_STATE" "$NEXTJS_STATE" "$CLI_STATE")
+          for registry_state in "${registry_states[@]}"; do
+            if [[ "$registry_state" != "bootstrap" && "$registry_state" != "stage" ]]; then
+              if [[ "$registry_state" != "published" ]]; then
+                echo "Unexpected registry state." >&2
+                exit 1
+              fi
+            fi
+          done
+          for index in "${!package_names[@]}"; do
+            package_name="${package_names[$index]}"
+            if [[ "${registry_states[$index]}" == "published" ]]; then
+              continue
+            fi
+            (cd "packages/libs/$package_name" && npm stage publish --tag beta --access public --provenance)
+          done
 
       - name: Record the publication result
         env:
@@ -221,7 +218,7 @@ jobs:
           package-manager-cache: false
 
       - name: Install the verified npm release CLI
-        run: npm install --global npm@12.0.2
+        run: npm install --global npm@12.2.0
 
       - name: Reverify the exact tagged release
         run: |
