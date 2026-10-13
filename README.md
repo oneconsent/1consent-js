@@ -34,3 +34,8 @@ executes them in a clean consumer project.
 The guarded beta release process is implemented in
 [`publish-npm.yml`](.github/workflows/publish-npm.yml). Releases require an immutable beta tag,
 the protected `npm-beta` environment, exact-manifest verification, and npm provenance.
+
+Every beta is staged for a maintainer's npm 2FA approval. The first release uses a short-lived
+stage-only token with 2FA bypass disabled; later releases use a configured trusted publisher.
+Staging a new package creates npm's public `0.0.0-stage` registration placeholder. The reviewed
+beta contents become installable only after approval. No beta is promoted to `latest`.

@@ -25,8 +25,8 @@
     },
     {
       "path": ".github/workflows/publish-npm.yml",
-      "bytes": 11656,
-      "sha256": "e0b376f38c433843a63cd5fc80bcb9a60df84570da13e3bfc4076bf22bc65020"
+      "bytes": 11764,
+      "sha256": "52a8a56e7f64affecd61a453f3e9a07947768e0138b4a327d1739e05c9afb01f"
     },
     {
       "path": ".github/workflows/quality.yml",
@@ -50,8 +50,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 1337,
-      "sha256": "c4a041c2a6a727f0d643f60c60ba2f8a46ca09cdbee9a6fbc19cdc411e703341"
+      "bytes": 1710,
+      "sha256": "31c0e90fa0ab5a108d865829ef5614f08f40337632c5d3dbeb00da19502f8313"
     },
     {
       "path": "SECURITY.md",
@@ -235,13 +235,13 @@
     },
     {
       "path": "scripts/npm-release-state.mts",
-      "bytes": 9367,
-      "sha256": "f498348d428807308ee6f44576436620a19e4e0e2034d7b29e92ba628bf0bf08"
+      "bytes": 10917,
+      "sha256": "6dcac21bd7c5404c99042313a2a7f4cec2a95815596f00a52364a3fbbf5e2240"
     },
     {
       "path": "scripts/npm-release-state.test.mts",
-      "bytes": 6280,
-      "sha256": "c5c6f78c100aabd8795068eea24d9d1cd979d8a4264fa06ada3a2e243126b7ee"
+      "bytes": 12462,
+      "sha256": "79001a9914f333a1b90ecb8276dec34cf03bce40c89f70b0c2550a18bb62471d"
     },
     {
       "path": "scripts/public-release-manifest.mjs",

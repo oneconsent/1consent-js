@@ -6,10 +6,10 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 export type NpmReleaseState = "bootstrap" | "published" | "stage";
+export type NpmPublisherMode = "bootstrap-token" | "trusted-publisher";
 
 const EXPLICIT_NOT_FOUND = /"code"\s*:\s*"E404"|npm error code E404/;
-const BETA_VERSION =
-    /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-beta\.(0|[1-9][0-9]*)$/;
+const BETA_VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-beta\.(0|[1-9][0-9]*)$/;
 const RELEASE_PACKAGES = [
     ["react", "@1consent/react", "packages/libs/react"],
     ["nextjs", "@1consent/nextjs", "packages/libs/nextjs"],
@@ -38,6 +38,32 @@ export function classifyPackageState(
     return packageExists ? "stage" : "bootstrap";
 }
 
+export function releasePublisher(argv: readonly string[]): NpmPublisherMode {
+    const flagIndex = argv.indexOf("--publisher");
+    const publisher = flagIndex >= 0 ? argv[flagIndex + 1] : undefined;
+    if (publisher !== "bootstrap-token" && publisher !== "trusted-publisher") {
+        throw new Error("[NpmRelease] --publisher must be bootstrap-token or trusted-publisher");
+    }
+    return publisher;
+}
+
+export function assertPublisherMatchesRelease(
+    publisher: NpmPublisherMode,
+    version: string,
+    states: readonly NpmReleaseState[],
+): void {
+    if (publisher === "bootstrap-token" && version !== "0.1.0-beta.0") {
+        throw new Error(
+            "[NpmRelease] The bootstrap token may stage only the first 0.1.0-beta.0 release",
+        );
+    }
+    if (publisher === "trusted-publisher" && states.includes("bootstrap")) {
+        throw new Error(
+            "[NpmRelease] New packages require bootstrap-token staging before trusted publishers can be configured",
+        );
+    }
+}
+
 export function interpretNpmIntegrityResult(
     status: number | null,
     stdout: string,
@@ -53,9 +79,12 @@ export function interpretNpmIntegrityResult(
     try {
         integrity = JSON.parse(stdout);
     } catch (error) {
-        throw new Error(`[NpmRelease] Registry returned invalid integrity JSON for ${packageSpec}`, {
-            cause: error,
-        });
+        throw new Error(
+            `[NpmRelease] Registry returned invalid integrity JSON for ${packageSpec}`,
+            {
+                cause: error,
+            },
+        );
     }
     if (typeof integrity !== "string" || !SHA512_INTEGRITY.test(integrity)) {
         throw new Error(`[NpmRelease] Registry returned invalid integrity for ${packageSpec}`);
@@ -100,7 +129,8 @@ export function assertBetaChannelAdvances(
     currentBetaVersion: string | undefined,
 ): void {
     if (currentBetaVersion === undefined) return;
-    const [releaseMajor, releaseMinor, releasePatch, releaseBeta] = betaVersionParts(releaseVersion);
+    const [releaseMajor, releaseMinor, releasePatch, releaseBeta] =
+        betaVersionParts(releaseVersion);
     const [currentMajor, currentMinor, currentPatch, currentBeta] =
         betaVersionParts(currentBetaVersion);
     const releaseParts = [releaseMajor, releaseMinor, releasePatch, releaseBeta];
@@ -110,7 +140,8 @@ export function assertBetaChannelAdvances(
         const releasePart = releaseParts[index];
         const currentPart = currentParts[index];
         if (releasePart === currentPart) continue;
-        if (releasePart !== undefined && currentPart !== undefined && releasePart > currentPart) return;
+        if (releasePart !== undefined && currentPart !== undefined && releasePart > currentPart)
+            return;
         throw new Error(
             `[NpmRelease] ${releaseVersion} must be newer than the current beta tag ${currentBetaVersion}`,
         );
@@ -140,9 +171,12 @@ export function interpretNpmBetaTagResult(
     try {
         betaTag = JSON.parse(output);
     } catch (error) {
-        throw new Error(`[NpmRelease] Registry returned invalid JSON for ${packageName}@beta version`, {
-            cause: error,
-        });
+        throw new Error(
+            `[NpmRelease] Registry returned invalid JSON for ${packageName}@beta version`,
+            {
+                cause: error,
+            },
+        );
     }
     if (typeof betaTag !== "string" || !BETA_VERSION.test(betaTag)) {
         throw new Error(`[NpmRelease] Registry returned an invalid beta tag for ${packageName}`);
@@ -227,17 +261,17 @@ function localPackageIntegrity(directory: string): string {
 export function releaseVersion(argv: readonly string[]): string {
     const flagIndex = argv.indexOf("--version");
     const version = flagIndex >= 0 ? argv[flagIndex + 1] : undefined;
-    if (
-        !version ||
-        !BETA_VERSION.test(version)
-    ) {
-        throw new Error("[NpmRelease] --version must be a valid <major>.<minor>.<patch>-beta.<number> prerelease");
+    if (!version || !BETA_VERSION.test(version)) {
+        throw new Error(
+            "[NpmRelease] --version must be a valid <major>.<minor>.<patch>-beta.<number> prerelease",
+        );
     }
     return version;
 }
 
 export function main(argv: readonly string[] = process.argv.slice(2)): void {
     const version = releaseVersion(argv);
+    const results: Array<readonly [string, NpmReleaseState]> = [];
 
     for (const [outputName, packageName, directory] of RELEASE_PACKAGES) {
         const exactVersionExists = npmPackageExists(`${packageName}@${version}`);
@@ -254,6 +288,16 @@ export function main(argv: readonly string[] = process.argv.slice(2)): void {
             assertBetaChannelAdvances(version, npmBetaTag(packageName));
         }
         const state = classifyPackageState(exactVersionExists, packageExists);
+        results.push([outputName, state]);
+    }
+    if (argv.includes("--publisher")) {
+        assertPublisherMatchesRelease(
+            releasePublisher(argv),
+            version,
+            results.map((result) => result[1]),
+        );
+    }
+    for (const [outputName, state] of results) {
         process.stdout.write(`${outputName}=${state}\n`);
     }
 }
