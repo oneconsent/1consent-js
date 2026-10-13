@@ -7,10 +7,10 @@ state without making server-rendered HTML visitor-specific.
 ## Distribution status
 
 The first supported release line is `0.1.0-beta.*` on npm's `beta` dist-tag.
-The package is publishable only from the protected, provenance-backed release
-workflow after its public source repository and npm trusted publisher are
-configured. Until the registry verification workflow passes, use the package
-from this workspace rather than advertising a public install command.
+The protected public-repository workflow stages each release with provenance
+for a maintainer's npm 2FA approval. The first release uses a short-lived
+stage-only token; later releases use trusted publishing. Before a release is
+approved and verified against the registry, test the reviewed local tarball.
 
 After verification, beta consumers install an explicit prerelease channel:
 
@@ -34,3 +34,14 @@ instead of becoming consumer dependencies.
 
 See the 1Consent developer reference for the complete API and integration
 guidance.
+
+## Before publication
+
+From this repository's root, pack the reviewed artifact into an existing directory:
+
+```sh
+npm pack ./packages/libs/react --pack-destination /path/to/tarballs
+```
+
+Install that tarball in a React 19+ test project. This repository contains the
+reviewed distribution artifacts; it does not contain the private source build.
