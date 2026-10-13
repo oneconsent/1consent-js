@@ -40,8 +40,8 @@
     },
     {
       "path": "CONTRIBUTING.md",
-      "bytes": 549,
-      "sha256": "1b727de56d962b48631120ef293ab0db891036857cff9ee539b7c532c5ee271f"
+      "bytes": 619,
+      "sha256": "264965ecaefc7f86def2c90a858b2636bece7c87d294731b562e30083b332515"
     },
     {
       "path": "LICENSE",
@@ -50,8 +50,13 @@
     },
     {
       "path": "README.md",
-      "bytes": 2655,
-      "sha256": "47820e0461e170fa0c282984498f6b3ba87d1f4d1784719981524f70676a1fbc"
+      "bytes": 3589,
+      "sha256": "79cd231c1f2c43499bb7c4a9589279a8bd88217907f7b4ca5ba002da0bc42e7f"
+    },
+    {
+      "path": "RELEASING.md",
+      "bytes": 4198,
+      "sha256": "9b945749f49e8dd9182681c84d0207003053e46000da1f2aa3aed4a4f63c029b"
     },
     {
       "path": "SECURITY.md",
@@ -245,8 +250,8 @@
     },
     {
       "path": "scripts/public-release-manifest.mjs",
-      "bytes": 9756,
-      "sha256": "61aca545c8450d6eb8ff99a8c1b1830c0151534a96823edf356fa1f606e3a3aa"
+      "bytes": 9776,
+      "sha256": "75970bf545c2bb8e702144e713f8127f27daf11b031c929fc8eb61fa8fd59d6b"
     },
     {
       "path": "scripts/public-release-manifest.test.mjs",

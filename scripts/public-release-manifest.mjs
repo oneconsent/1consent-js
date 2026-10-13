@@ -60,6 +60,7 @@ export const PUBLIC_RELEASE_FILES = [
     "CONTRIBUTING.md",
     "LICENSE",
     "README.md",
+    "RELEASING.md",
     "SECURITY.md",
     "package.json",
     ...Object.entries(PUBLIC_PACKAGE_FILES).flatMap(([directory, files]) =>
