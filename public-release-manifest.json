@@ -75,8 +75,8 @@
     },
     {
       "path": "packages/libs/cli/dist/cli.js",
-      "bytes": 865964,
-      "sha256": "2c7c5f04c92f07ddf3c84b472d342b0f99c9ad5fc4051d1007c435aba56e143e"
+      "bytes": 866511,
+      "sha256": "5f176966b24a90119597ed835757d87da50b35146bcc114159615344636a65f4"
     },
     {
       "path": "packages/libs/cli/dist/design-kit/index.d.ts",
@@ -85,18 +85,18 @@
     },
     {
       "path": "packages/libs/cli/dist/design-kit/index.js",
-      "bytes": 761209,
-      "sha256": "4d03b503ac2d70beba5e4790ab8749f3f1a0b4e6e51cb977317a8aa18f441b43"
+      "bytes": 766229,
+      "sha256": "716938f393aa8ac090adeccab974bdbbe112f75591d86a215656f818bcbdced5"
     },
     {
       "path": "packages/libs/cli/dist/design-kit/runtime.js",
-      "bytes": 141192,
-      "sha256": "6bed2b02ccf7c2712525f7a02c047e94aab2d0df3ce8016211225fd3ad9da043"
+      "bytes": 144436,
+      "sha256": "2d2cb4592604c864c696ffb70cd8932546758ffd1842f266eca1273ea625462a"
     },
     {
       "path": "packages/libs/cli/dist/design-kit/ui/assets/index.css",
-      "bytes": 65736,
-      "sha256": "d40bea6ccc366c2dff946da05520273ceac3a7a70936a874bf79643424b4eb40"
+      "bytes": 65733,
+      "sha256": "26d3f8e84edd3b876979d33000fe4875e9e480ba0465802353cd14f9fb1bce5e"
     },
     {
       "path": "packages/libs/cli/dist/design-kit/ui/assets/index.js",
@@ -185,8 +185,8 @@
     },
     {
       "path": "packages/libs/react/dist/index.js",
-      "bytes": 27067,
-      "sha256": "2e96210298922028773ac20984e14eab2e51903b03219e4054d6a18dfc139cab"
+      "bytes": 27237,
+      "sha256": "b4adfd53dee0cac987ad274b3686f333a292dbf71a6b8be44f735e4158a787bc"
     },
     {
       "path": "packages/libs/react/dist/one-consent.d.ts",
@@ -205,8 +205,8 @@
     },
     {
       "path": "packages/libs/react/dist/react-server.js",
-      "bytes": 16657,
-      "sha256": "b04c6b9361fcd3ee9a5980ebed4a01c4e0b70b9c2c381b9c6ef7f715e9cf6a65"
+      "bytes": 16714,
+      "sha256": "bb57b2e784456e816f50bf8975dc12aaa328ef89934f6be499da4b0590eef6de"
     },
     {
       "path": "packages/libs/react/dist/types.d.ts",
