@@ -19,7 +19,8 @@ The manifest and clean-consumer checks verify the reviewed distribution artifact
 
 ## Verify artifacts
 
-Use Node.js 24 from the repository root:
+Use Node.js 24.15 or newer and npm 12.2.0 from the repository root. Both the quality and
+publishing workflows pin this npm version so verification exercises its JSON output contracts:
 
 ```sh
 npm test
@@ -37,7 +38,7 @@ The workflow is [Publish npm beta](.github/workflows/publish-npm.yml). It runs o
 immutable `npm-v<version>` beta tag whose commit is contained in `main`. Its publishing job uses
 the protected `npm-beta` environment, validates the exact artifacts, and includes npm provenance.
 
-Every beta is staged for a maintainer's npm 2FA approval. The first `0.1.0-beta.0` release uses a
+Every beta is staged for a maintainer's npm 2FA approval. The first `0.1.0-beta.1` release uses a
 short-lived, scope-limited token with **Read and write (stage only)** permission and **2FA bypass
 disabled**. Store it only as the environment secret `NPM_BOOTSTRAP_TOKEN`. Later releases use
 the configured GitHub OIDC trusted publisher with stage-only permission.
@@ -48,12 +49,15 @@ The staged beta and its contents become installable only after approval. No beta
 [trusted-publishing](https://docs.npmjs.com/trusted-publishers/) mechanisms; the exact manifest,
 tag naming, and environment policy are this project's safeguards.
 
+The immutable `npm-v0.1.0-beta.0` tag records a preflight failure before npm staging.
+The corrected first release is `0.1.0-beta.1`; the failed tag remains unchanged.
+
 ## Release sequence
 
 1. Review the public snapshot and merge it into `main` after all required checks pass.
 2. Create the immutable beta tag from that exact reviewed commit. Never move or reuse a release tag.
 3. Dispatch **Publish npm beta** from the tag with operation `publish`. Select publisher
-   `bootstrap-token` for the first `0.1.0-beta.0` release, or `trusted-publisher` for later betas.
+   `bootstrap-token` for the first `0.1.0-beta.1` release, or `trusted-publisher` for later betas.
 4. Review each staged tarball in npm, then approve it with 2FA.
 5. Dispatch the same workflow from the same tag with operation `verify`.
 6. Confirm exact tarball integrity, `beta` tags, clean installation/execution, and verified provenance
