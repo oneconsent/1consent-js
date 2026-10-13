@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { parseNpmPackReport } from "./npm-pack-report.mts";
 
 export type NpmReleaseState = "bootstrap" | "published" | "stage";
 export type NpmPublisherMode = "bootstrap-token" | "trusted-publisher";
@@ -52,9 +53,9 @@ export function assertPublisherMatchesRelease(
     version: string,
     states: readonly NpmReleaseState[],
 ): void {
-    if (publisher === "bootstrap-token" && version !== "0.1.0-beta.0") {
+    if (publisher === "bootstrap-token" && version !== "0.1.0-beta.1") {
         throw new Error(
-            "[NpmRelease] The bootstrap token may stage only the first 0.1.0-beta.0 release",
+            "[NpmRelease] The bootstrap token may stage only the first 0.1.0-beta.1 release",
         );
     }
     if (publisher === "trusted-publisher" && states.includes("bootstrap")) {
@@ -77,7 +78,7 @@ export function interpretNpmIntegrityResult(
     }
     let integrity: unknown;
     try {
-        integrity = JSON.parse(stdout);
+        integrity = singleNpmViewValue(JSON.parse(stdout), packageSpec);
     } catch (error) {
         throw new Error(
             `[NpmRelease] Registry returned invalid integrity JSON for ${packageSpec}`,
@@ -169,7 +170,7 @@ export function interpretNpmBetaTagResult(
 
     let betaTag: unknown;
     try {
-        betaTag = JSON.parse(output);
+        betaTag = singleNpmViewValue(JSON.parse(output), packageName);
     } catch (error) {
         throw new Error(
             `[NpmRelease] Registry returned invalid JSON for ${packageName}@beta version`,
@@ -178,10 +179,19 @@ export function interpretNpmBetaTagResult(
             },
         );
     }
+    if (betaTag === undefined) return undefined;
     if (typeof betaTag !== "string" || !BETA_VERSION.test(betaTag)) {
         throw new Error(`[NpmRelease] Registry returned an invalid beta tag for ${packageName}`);
     }
     return betaTag;
+}
+
+function singleNpmViewValue(value: unknown, packageSpec: string): unknown {
+    if (!Array.isArray(value)) return value;
+    if (value.length > 1) {
+        throw new Error(`[NpmRelease] Ambiguous registry values for ${packageSpec}`);
+    }
+    return value[0];
 }
 
 function npmPackageExists(packageSpec: string): boolean {
@@ -244,15 +254,9 @@ function localPackageIntegrity(directory: string): string {
                 cause: error,
             });
         }
-        if (
-            !Array.isArray(report) ||
-            report.length !== 1 ||
-            typeof report[0]?.integrity !== "string" ||
-            !SHA512_INTEGRITY.test(report[0].integrity)
-        ) {
-            throw new Error(`[NpmRelease] Local package integrity is invalid for ${directory}`);
-        }
-        return report[0].integrity;
+        const packageName = RELEASE_PACKAGES.find((entry) => entry[2] === directory)?.[1];
+        if (!packageName) throw new Error(`[NpmRelease] Unreviewed package directory ${directory}`);
+        return parseNpmPackReport(report, packageName).integrity;
     } finally {
         rmSync(cacheDirectory, { recursive: true, force: true });
     }

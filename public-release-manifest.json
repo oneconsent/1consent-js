@@ -4,17 +4,17 @@
     {
       "directory": "packages/libs/react",
       "name": "@1consent/react",
-      "version": "0.1.0-beta.0"
+      "version": "0.1.0-beta.1"
     },
     {
       "directory": "packages/libs/nextjs",
       "name": "@1consent/nextjs",
-      "version": "0.1.0-beta.0"
+      "version": "0.1.0-beta.1"
     },
     {
       "directory": "packages/libs/cli",
       "name": "@1consent/cli",
-      "version": "0.1.0-beta.0"
+      "version": "0.1.0-beta.1"
     }
   ],
   "files": [
@@ -30,8 +30,8 @@
     },
     {
       "path": ".github/workflows/quality.yml",
-      "bytes": 886,
-      "sha256": "9756babdf09676e930ce3e9a011eac3843ed1c16c5fd84c055496ff89e3f175a"
+      "bytes": 983,
+      "sha256": "648c705275bc5120557298c15e852a8c300f4973364ead724ba1b26f7d5df959"
     },
     {
       "path": ".gitignore",
@@ -51,12 +51,12 @@
     {
       "path": "README.md",
       "bytes": 3589,
-      "sha256": "79cd231c1f2c43499bb7c4a9589279a8bd88217907f7b4ca5ba002da0bc42e7f"
+      "sha256": "67cedd3a820d103b3244b8bff0ff13828949414a28d6304c2dcff0c757427aa8"
     },
     {
       "path": "RELEASING.md",
-      "bytes": 4198,
-      "sha256": "9b945749f49e8dd9182681c84d0207003053e46000da1f2aa3aed4a4f63c029b"
+      "bytes": 4509,
+      "sha256": "daf7083585f5201c929bb6fb415d317188381fb56120258bef754d51b8ae69bd"
     },
     {
       "path": "SECURITY.md",
@@ -81,7 +81,7 @@
     {
       "path": "packages/libs/cli/dist/cli.js",
       "bytes": 866511,
-      "sha256": "5f176966b24a90119597ed835757d87da50b35146bcc114159615344636a65f4"
+      "sha256": "02ab8d2fbe7d49b567901e879328822956e69d0f90a1e65005fc8d1c4442f5f0"
     },
     {
       "path": "packages/libs/cli/dist/design-kit/index.d.ts",
@@ -116,7 +116,7 @@
     {
       "path": "packages/libs/cli/package.json",
       "bytes": 1589,
-      "sha256": "e8cb5d324a93de303a3044d571bdd41d30f3e108e91d33d59c09c29764d6643d"
+      "sha256": "bc7ad12b09baa69618c9eeb27a4a3dc3654511cebc12bf45c7127f5e44cfc205"
     },
     {
       "path": "packages/libs/nextjs/LICENSE",
@@ -171,7 +171,7 @@
     {
       "path": "packages/libs/nextjs/package.json",
       "bytes": 1729,
-      "sha256": "9528bc594d9a9f4abaf94a5a4d05cbeb685d404d954a8a42b459e33b7245d514"
+      "sha256": "423158af4dfdded4652fe263217ae01e7904e3787c3112656b3936ebfd1b885d"
     },
     {
       "path": "packages/libs/react/LICENSE",
@@ -226,7 +226,7 @@
     {
       "path": "packages/libs/react/package.json",
       "bytes": 1504,
-      "sha256": "2b4f60a2dd0c07079df6b866536ce5056c4d2a2ae8cc9686d511e5f2f827fb0e"
+      "sha256": "86012b64b9234def114397088cd0e92c0f6c1a90bb3a7582bb831477e22cb172"
     },
     {
       "path": "scripts/check-secrets.mjs",
@@ -239,19 +239,29 @@
       "sha256": "e98f88c38cd50de984f5d26e2d2c0255c07d0bb8c6e36d3f9ef0f643505875dd"
     },
     {
+      "path": "scripts/npm-pack-report.mts",
+      "bytes": 2936,
+      "sha256": "6971f28a7fa08b12756565c2141dbe4dc187da9390b87a7cb3b015f37e89c1a4"
+    },
+    {
+      "path": "scripts/npm-pack-report.test.mts",
+      "bytes": 2038,
+      "sha256": "39fc0ce8f58a8ed0485c70cb43a2f41cc7635e693a81a3a4c085085905b414f0"
+    },
+    {
       "path": "scripts/npm-release-state.mts",
-      "bytes": 10917,
-      "sha256": "6dcac21bd7c5404c99042313a2a7f4cec2a95815596f00a52364a3fbbf5e2240"
+      "bytes": 11262,
+      "sha256": "ed947e9fd00c92f770d242dfda42d5c4cdc1787a0c3c6a9aefea8e45d934ab33"
     },
     {
       "path": "scripts/npm-release-state.test.mts",
-      "bytes": 12462,
-      "sha256": "79001a9914f333a1b90ecb8276dec34cf03bce40c89f70b0c2550a18bb62471d"
+      "bytes": 13781,
+      "sha256": "8660c78403b168623f75f563936a9dd6ba0126246e9e86d06e14ed78ff93a57b"
     },
     {
       "path": "scripts/public-release-manifest.mjs",
-      "bytes": 9776,
-      "sha256": "75970bf545c2bb8e702144e713f8127f27daf11b031c929fc8eb61fa8fd59d6b"
+      "bytes": 9851,
+      "sha256": "faea2962f796ef1112dece457dba11a4b982ff0a1d65ef52abdfd6d3085afafc"
     },
     {
       "path": "scripts/public-release-manifest.test.mjs",
@@ -260,8 +270,8 @@
     },
     {
       "path": "scripts/smoke-public-packages.mjs",
-      "bytes": 8179,
-      "sha256": "e6a46188bf5f854d6368b60edb14b04264e767338cbfa7101d707ae0ec4625b5"
+      "bytes": 8225,
+      "sha256": "186f08e8da3ad865a78dbf1ac15fc3c4779087aaf9bea7adfb45b7b1c766c8c0"
     },
     {
       "path": "scripts/verify-npm-provenance.mts",

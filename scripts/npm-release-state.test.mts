@@ -152,7 +152,7 @@ test("publishing uses an explicit authentication mode", () => {
 
 test("first-version token staging handles missing packages and registered staging placeholders", () => {
     assert.doesNotThrow(() =>
-        assertPublisherMatchesRelease("bootstrap-token", "0.1.0-beta.0", [
+        assertPublisherMatchesRelease("bootstrap-token", "0.1.0-beta.1", [
             "bootstrap",
             "stage",
             "published",
@@ -160,8 +160,8 @@ test("first-version token staging handles missing packages and registered stagin
     );
 });
 
-test("a bootstrap token cannot be reused for later releases", () => {
-    for (const version of ["0.1.0-beta.1", "0.2.0-beta.0", "1.0.0-beta.0"]) {
+test("the bootstrap token rejects the failed tag and later releases", () => {
+    for (const version of ["0.1.0-beta.0", "0.1.0-beta.2", "0.2.0-beta.0", "1.0.0-beta.0"]) {
         assert.throws(
             () => assertPublisherMatchesRelease("bootstrap-token", version, ["stage"]),
             /may stage only the first/,
@@ -258,6 +258,45 @@ test("parses only successful SHA-512 registry integrity responses", () => {
             interpretNpmIntegrityResult(0, '"sha1-not-accepted"', "", "@1consent/cli@0.1.0-beta.0"),
         /invalid integrity/,
     );
+});
+
+test("reads npm 12 single-value registry integrity arrays", () => {
+    const integrity = `sha512-${Buffer.alloc(64, 2).toString("base64")}`;
+    assert.equal(
+        interpretNpmIntegrityResult(
+            0,
+            JSON.stringify([integrity]),
+            "",
+            "@1consent/react@0.1.0-beta.0",
+        ),
+        integrity,
+    );
+    for (const report of [[], [integrity, integrity], [null], [[integrity]]]) {
+        assert.throws(
+            () =>
+                interpretNpmIntegrityResult(
+                    0,
+                    JSON.stringify(report),
+                    "",
+                    "@1consent/react@0.1.0-beta.0",
+                ),
+            /invalid|Ambiguous/,
+        );
+    }
+});
+
+test("reads npm 12 beta-tag arrays and its empty missing-field result", () => {
+    assert.equal(
+        interpretNpmBetaTagResult(0, '["0.1.0-beta.4"]', "", "@1consent/react"),
+        "0.1.0-beta.4",
+    );
+    assert.equal(interpretNpmBetaTagResult(0, "[]", "", "@1consent/react"), undefined);
+    for (const report of [["0.1.0-beta.4", "0.1.0-beta.5"], [null], [["0.1.0-beta.4"]]]) {
+        assert.throws(
+            () => interpretNpmBetaTagResult(0, JSON.stringify(report), "", "@1consent/react"),
+            /invalid|Ambiguous/,
+        );
+    }
 });
 
 test("an existing package without the requested version always uses staging", () => {

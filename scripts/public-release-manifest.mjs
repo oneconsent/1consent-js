@@ -68,6 +68,8 @@ export const PUBLIC_RELEASE_FILES = [
     ),
     "scripts/check-secrets.mjs",
     "scripts/check-secrets.test.mjs",
+    "scripts/npm-pack-report.mts",
+    "scripts/npm-pack-report.test.mts",
     "scripts/npm-release-state.mts",
     "scripts/npm-release-state.test.mts",
     "scripts/public-release-manifest.mjs",

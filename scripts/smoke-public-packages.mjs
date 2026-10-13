@@ -12,6 +12,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseNpmPackReport } from "./npm-pack-report.mts";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const reactDir = resolve(repoRoot, "packages/libs/react");
@@ -80,17 +81,16 @@ function packSource(packageDir) {
 }
 
 function pack(packageDir) {
-    const report = JSON.parse(
+    const value = JSON.parse(
         run(
             "npm",
             ["pack", "--json", "--ignore-scripts", "--pack-destination", consumerDir],
             packSource(packageDir),
         ),
     );
-    if (!Array.isArray(report) || report.length !== 1 || typeof report[0]?.filename !== "string") {
-        throw new Error(`Could not pack ${packageDir}`);
-    }
-    return resolve(consumerDir, report[0].filename);
+    const manifest = JSON.parse(readFileSync(resolve(packageDir, "package.json"), "utf8"));
+    const report = parseNpmPackReport(value, manifest.name);
+    return resolve(consumerDir, report.filename);
 }
 
 try {
