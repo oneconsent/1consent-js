@@ -14617,6 +14617,11 @@ function date4(params) {
 // ../../../node_modules/.pnpm/zod@4.4.3/node_modules/zod/v4/classic/external.js
 config(en_default());
 
+// ../../contracts/dist/consent-publication.js
+var CONSENT_EVENT_MAX_BODY_BYTES = 16 * 1024;
+var CONSENT_STRING_MAX_LENGTH = 8 * 1024;
+var CONSENT_PUBLICATION_TOKEN_MAX_LENGTH = 4 * 1024;
+
 // ../../contracts/dist/framework-config.js
 var NOTICE_POSITIONS = [
   "center-center",
@@ -14758,6 +14763,7 @@ var runtimeConfigSchema = external_exports.object({
     noticeVersion: external_exports.string().min(1).max(20),
     configVersion: external_exports.string().min(1).max(20)
   }).optional(),
+  consentPublicationToken: external_exports.string().min(1).max(CONSENT_PUBLICATION_TOKEN_MAX_LENGTH).optional(),
   machine: external_exports.enum(["P", "S", "D"]),
   languages: languagesConfigSchema,
   cmp: cmpConfigSchema,
@@ -14794,6 +14800,7 @@ var localizedLayerContentSchema = external_exports.object({
   legalLinks: external_exports.array(external_exports.object({ label: external_exports.string(), url: external_exports.string() }))
 });
 var localizedContentSchema = localizedLayerContentSchema.extend({
+  templateLabels: external_exports.record(external_exports.string(), external_exports.string()).optional(),
   details: localizedLayerContentSchema.optional(),
   alwaysActiveLabel: external_exports.string().optional(),
   categoryLabels: external_exports.record(external_exports.string(), external_exports.object({
@@ -14957,6 +14964,120 @@ var tokenThemeConfigSchema = external_exports.object({
   brand: brandTokensSchema.optional()
 });
 
+// ../../contracts/dist/tcf-device-storage.js
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function isStorageType(value) {
+  return value === "cookie" || value === "web" || value === "app";
+}
+function positiveIntegerIds(value) {
+  if (!Array.isArray(value))
+    return null;
+  if (!value.every((item) => typeof item === "number" && Number.isSafeInteger(item) && item > 0) || new Set(value).size !== value.length) {
+    return null;
+  }
+  return value;
+}
+function validateDisclosureResponse(raw) {
+  if (!isRecord(raw))
+    return null;
+  const obj = raw;
+  if (!Array.isArray(obj.disclosures))
+    return null;
+  if (obj.domains !== void 0 && !Array.isArray(obj.domains))
+    return null;
+  if (obj.sdks !== void 0 && !Array.isArray(obj.sdks))
+    return null;
+  const rawDisclosures = obj.disclosures;
+  const rawDomains = obj.domains ?? [];
+  const rawSdks = obj.sdks ?? [];
+  const disclosures = [];
+  for (const item of rawDisclosures) {
+    if (!isRecord(item))
+      return null;
+    const d = item;
+    if (typeof d.identifier !== "string" || !d.identifier || d.identifier === "*")
+      return null;
+    if (!isStorageType(d.type))
+      return null;
+    const type = d.type;
+    const optOut = d.optOut === void 0 ? false : d.optOut;
+    if (typeof optOut !== "boolean")
+      return null;
+    const purposes = positiveIntegerIds(d.purposes);
+    const specialPurposes = positiveIntegerIds(d.specialPurposes ?? []);
+    if (!purposes || !specialPurposes)
+      return null;
+    const description = d.description;
+    if (description !== void 0 && (typeof description !== "string" || !description)) {
+      return null;
+    }
+    if (purposes.length === 0 && specialPurposes.length === 0 && typeof description !== "string") {
+      return null;
+    }
+    if (d.domains !== void 0 && d.domain !== void 0)
+      return null;
+    const itemDomains = Array.isArray(d.domains) ? d.domains : typeof d.domain === "string" ? [d.domain] : [];
+    if (!itemDomains.every((domain2) => typeof domain2 === "string" && domain2.length > 0)) {
+      return null;
+    }
+    if ((type === "cookie" || type === "web") && itemDomains.length === 0 && !optOut) {
+      return null;
+    }
+    const maxAgeSeconds = d.maxAgeSeconds ?? null;
+    if (maxAgeSeconds !== null && (typeof maxAgeSeconds !== "number" || !Number.isSafeInteger(maxAgeSeconds) || maxAgeSeconds < 0)) {
+      return null;
+    }
+    if (type === "cookie" && maxAgeSeconds === null && !optOut)
+      return null;
+    if (type !== "cookie" && maxAgeSeconds !== null)
+      return null;
+    const cookieRefresh = d.cookieRefresh ?? false;
+    if (typeof cookieRefresh !== "boolean")
+      return null;
+    disclosures.push({
+      identifier: d.identifier,
+      type,
+      maxAgeSeconds,
+      cookieRefresh,
+      domains: itemDomains,
+      purposes,
+      specialPurposes,
+      ...description && { description },
+      optOut
+    });
+  }
+  const domains = [];
+  for (const item of rawDomains) {
+    if (!isRecord(item))
+      return null;
+    const d = item;
+    if (typeof d.domain !== "string" || !d.domain || d.domain.includes("://") || d.use !== void 0 && typeof d.use !== "string") {
+      return null;
+    }
+    domains.push({
+      domain: d.domain,
+      use: typeof d.use === "string" ? d.use : ""
+    });
+  }
+  const sdks = [];
+  for (const item of rawSdks) {
+    if (!isRecord(item))
+      return null;
+    const sdk = item;
+    if (typeof sdk.name !== "string" || !sdk.name || sdk.use !== void 0 && typeof sdk.use !== "string") {
+      return null;
+    }
+    sdks.push({ name: sdk.name, use: typeof sdk.use === "string" ? sdk.use : "" });
+  }
+  return {
+    disclosures,
+    ...obj.domains !== void 0 && { domains },
+    ...obj.sdks !== void 0 && { sdks }
+  };
+}
+
 // ../../contracts/dist/types/AppearanceValue.js
 function resolveAppearance(value, mode) {
   if (typeof value === "object" && value !== null && "light" in value && "dark" in value) {
@@ -14966,6 +15087,66 @@ function resolveAppearance(value, mode) {
 }
 
 // ../../contracts/dist/theme-resolver-tokens.js
+var BUTTON_VARIABLES = {
+  background: "bg",
+  text: "text",
+  border: "border",
+  hoverBackground: "hover-bg",
+  hoverText: "hover-text",
+  hoverBorder: "hover-border",
+  activeBackground: "active-bg",
+  activeText: "active-text",
+  focusRing: "focus-ring",
+  disabledOpacity: "disabled-opacity"
+};
+var TOGGLE_VARIABLES = {
+  activeColor: "active-color",
+  inactiveColor: "inactive-color",
+  trackBackground: "track-bg",
+  thumbColor: "thumb-color",
+  disabledActiveColor: "disabled-active-color",
+  disabledInactiveColor: "disabled-inactive-color",
+  disabledOpacity: "disabled-opacity"
+};
+var INPUT_VARIABLES = {
+  background: "bg",
+  border: "border",
+  text: "text",
+  placeholder: "placeholder",
+  disabledBackground: "disabled-bg",
+  disabledBorder: "disabled-border",
+  disabledText: "disabled-text"
+};
+function emitComponentTokens(output, prefix, tokens, variables, mode) {
+  for (const key in variables) {
+    const value = tokens[key];
+    if (value !== void 0)
+      output[`${prefix}-${variables[key]}`] = resolveAppearance(value, mode);
+  }
+}
+function normalizeThemeBorder(value) {
+  const trimmed = value.trim();
+  if (/^(?:auto|none|hidden|initial|inherit|unset|revert|revert-layer|thin|medium|thick|solid|dashed|dotted|double|groove|ridge|inset|outset)$/i.test(trimmed))
+    return trimmed;
+  if (/^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(trimmed) || isCompleteColorFunction(trimmed) || /^[a-z]+$/i.test(trimmed))
+    return `1px solid ${trimmed}`;
+  return trimmed;
+}
+function isCompleteColorFunction(value) {
+  if (!/^(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color|color-mix)\(/i.test(value))
+    return false;
+  let depth = 0;
+  for (let index = value.indexOf("("); index < value.length; index += 1) {
+    if (value[index] === "(")
+      depth += 1;
+    if (value[index] === ")") {
+      depth -= 1;
+      if (depth === 0)
+        return index === value.length - 1;
+    }
+  }
+  return false;
+}
 function resolveThemeToCSS(config2, mode) {
   const cssVariables = {};
   cssVariables["--oc-font-family"] = config2.globals.typography.fontFamily;
@@ -15013,71 +15194,16 @@ function resolveThemeToCSS(config2, mode) {
   if (config2.colors.link) {
     cssVariables["--oc-color-link"] = resolveAppearance(config2.colors.link, mode);
   }
-  const { button } = config2.components;
-  cssVariables["--oc-button-primary-bg"] = resolveAppearance(button.variants.primary.background, mode);
-  cssVariables["--oc-button-primary-text"] = resolveAppearance(button.variants.primary.text, mode);
-  if (button.variants.primary.border) {
-    cssVariables["--oc-button-primary-border"] = resolveAppearance(button.variants.primary.border, mode);
-  }
-  if (button.variants.primary.hoverBackground) {
-    cssVariables["--oc-button-primary-hover-bg"] = resolveAppearance(button.variants.primary.hoverBackground, mode);
-  }
-  if (button.variants.primary.hoverText) {
-    cssVariables["--oc-button-primary-hover-text"] = resolveAppearance(button.variants.primary.hoverText, mode);
-  }
-  if (button.variants.primary.activeBackground) {
-    cssVariables["--oc-button-primary-active-bg"] = resolveAppearance(button.variants.primary.activeBackground, mode);
-  }
-  if (button.variants.primary.activeText) {
-    cssVariables["--oc-button-primary-active-text"] = resolveAppearance(button.variants.primary.activeText, mode);
-  }
-  if (button.variants.primary.focusRing) {
-    cssVariables["--oc-button-primary-focus-ring"] = resolveAppearance(button.variants.primary.focusRing, mode);
-  }
-  if (button.variants.primary.disabledOpacity) {
-    cssVariables["--oc-button-primary-disabled-opacity"] = button.variants.primary.disabledOpacity;
-  }
-  cssVariables["--oc-button-secondary-bg"] = resolveAppearance(button.variants.secondary.background, mode);
-  cssVariables["--oc-button-secondary-text"] = resolveAppearance(button.variants.secondary.text, mode);
-  if (button.variants.secondary.border) {
-    cssVariables["--oc-button-secondary-border"] = resolveAppearance(button.variants.secondary.border, mode);
-  }
-  if (button.variants.secondary.hoverBackground) {
-    cssVariables["--oc-button-secondary-hover-bg"] = resolveAppearance(button.variants.secondary.hoverBackground, mode);
-  }
-  if (button.variants.secondary.hoverText) {
-    cssVariables["--oc-button-secondary-hover-text"] = resolveAppearance(button.variants.secondary.hoverText, mode);
-  }
-  if (button.variants.secondary.activeBackground) {
-    cssVariables["--oc-button-secondary-active-bg"] = resolveAppearance(button.variants.secondary.activeBackground, mode);
-  }
-  if (button.variants.secondary.focusRing) {
-    cssVariables["--oc-button-secondary-focus-ring"] = resolveAppearance(button.variants.secondary.focusRing, mode);
-  }
-  if (button.variants.secondary.disabledOpacity) {
-    cssVariables["--oc-button-secondary-disabled-opacity"] = button.variants.secondary.disabledOpacity;
-  }
-  if (button.variants.ghost) {
-    cssVariables["--oc-button-ghost-bg"] = resolveAppearance(button.variants.ghost.background, mode);
-    cssVariables["--oc-button-ghost-text"] = resolveAppearance(button.variants.ghost.text, mode);
-    if (button.variants.ghost.hoverBackground) {
-      cssVariables["--oc-button-ghost-hover-bg"] = resolveAppearance(button.variants.ghost.hoverBackground, mode);
-    }
-    if (button.variants.ghost.activeBackground) {
-      cssVariables["--oc-button-ghost-active-bg"] = resolveAppearance(button.variants.ghost.activeBackground, mode);
-    }
-    if (button.variants.ghost.focusRing) {
-      cssVariables["--oc-button-ghost-focus-ring"] = resolveAppearance(button.variants.ghost.focusRing, mode);
-    }
-  }
-  if (button.variants.link) {
-    cssVariables["--oc-button-link-bg"] = resolveAppearance(button.variants.link.background, mode);
-    cssVariables["--oc-button-link-text"] = resolveAppearance(button.variants.link.text, mode);
-    if (button.variants.link.hoverText) {
-      cssVariables["--oc-button-link-hover-text"] = resolveAppearance(button.variants.link.hoverText, mode);
-    }
-    if (button.variants.link.activeText) {
-      cssVariables["--oc-button-link-active-text"] = resolveAppearance(button.variants.link.activeText, mode);
+  for (const variant of ["primary", "secondary", "ghost", "link"]) {
+    const tokens = config2.components.button.variants[variant];
+    if (!tokens)
+      continue;
+    emitComponentTokens(cssVariables, `--oc-button-${variant}`, tokens, BUTTON_VARIABLES, mode);
+    for (const field of ["border", "hoverBorder", "focusRing"]) {
+      const value = tokens[field];
+      if (value !== void 0) {
+        cssVariables[`--oc-button-${variant}-${BUTTON_VARIABLES[field]}`] = normalizeThemeBorder(resolveAppearance(value, mode));
+      }
     }
   }
   cssVariables["--oc-link-color"] = resolveAppearance(config2.components.link.color, mode);
@@ -15089,14 +15215,10 @@ function resolveThemeToCSS(config2, mode) {
     cssVariables["--oc-link-focus-ring"] = config2.components.link.focusRing ? "2px solid currentColor" : "none";
   }
   if (config2.components.toggle) {
-    cssVariables["--oc-toggle-active-color"] = resolveAppearance(config2.components.toggle.activeColor, mode);
-    cssVariables["--oc-toggle-inactive-color"] = resolveAppearance(config2.components.toggle.inactiveColor, mode);
-    if (config2.components.toggle.trackBackground) {
-      cssVariables["--oc-toggle-track-bg"] = resolveAppearance(config2.components.toggle.trackBackground, mode);
-    }
-    if (config2.components.toggle.thumbColor) {
-      cssVariables["--oc-toggle-thumb-color"] = resolveAppearance(config2.components.toggle.thumbColor, mode);
-    }
+    emitComponentTokens(cssVariables, "--oc-toggle", config2.components.toggle, TOGGLE_VARIABLES, mode);
+  }
+  if (config2.components.input) {
+    emitComponentTokens(cssVariables, "--oc-input", config2.components.input, INPUT_VARIABLES, mode);
   }
   if (config2.brand?.logoUrl) {
     const logoUrl = resolveAppearance(config2.brand.logoUrl, mode);
@@ -19127,8 +19249,8 @@ async function loadVendorDisclosure(module, vendorId, dependencies = {}) {
       }
       if (response.status < 200 || response.status >= 300) return null;
       if (Buffer.byteLength(response.body, "utf8") > maxBodyBytes) return null;
-      JSON.parse(response.body);
-      return response.body;
+      const normalized = validateDisclosureResponse(JSON.parse(response.body));
+      return normalized ? JSON.stringify(normalized) : null;
     }
   } catch {
     return null;
@@ -19278,6 +19400,72 @@ function createDesignKitPlugin(options = {}) {
         const serviceDetailMatch = url2.pathname.match(/^\/v\/[^/]+\/services\/([^/.]+)/);
         if (serviceDetailMatch) {
           const serviceId = serviceDetailMatch[1];
+          const declaration = {
+            parties: [
+              {
+                key: "google-ireland",
+                name: "Google Ireland Limited",
+                kind: "service_provider",
+                address: "Gordon House, Barrow Street, Dublin 4, Ireland",
+                privacyContact: "https://support.google.com/policies/contact/general_privacy_form"
+              }
+            ],
+            purposes: [
+              { key: "analytics", name: "Analytics" },
+              { key: "performance", name: "Performance measurement" },
+              { key: "personalization", name: "Content personalization" }
+            ],
+            dataSources: [],
+            dataCategories: [
+              "IP Address",
+              "Browser Type",
+              "Device Info",
+              "Pages Visited"
+            ],
+            recipients: [
+              { name: "Google Ireland Limited", partyKey: "google-ireland" },
+              { name: "Google LLC (USA)" }
+            ],
+            technologies: ["Cookies", "Pixel Tags", "JavaScript"],
+            processingLocations: [{ name: "Ireland" }, { name: "Finland" }],
+            retention: [{ period: "26 months" }],
+            transfers: [{ destination: "United States", countryCode: "US" }],
+            deviceStorage: {
+              maximumDuration: "2 years",
+              items: [
+                {
+                  key: "_ga",
+                  type: "cookie",
+                  duration: "2 years",
+                  description: "Distinguishes users."
+                },
+                {
+                  key: "_gid",
+                  type: "cookie",
+                  duration: "24 hours",
+                  description: "Distinguishes users."
+                },
+                {
+                  key: "_gat",
+                  type: "cookie",
+                  duration: "1 minute",
+                  description: "Throttles request rate."
+                }
+              ]
+            },
+            links: {
+              privacyPolicyUrl: "https://policies.google.com/privacy",
+              cookiePolicyUrl: "https://policies.google.com/technologies/cookies"
+            },
+            legalProfile: {
+              label: "GDPR / ePrivacy",
+              processingGrounds: [{ basis: "consent", label: "Consent" }],
+              partyRoles: [{ partyKey: "google-ireland", role: "processor" }],
+              rights: ["Withdraw consent"]
+            }
+          };
+          const provider = declaration.parties[0];
+          if (!provider) throw new Error("Design Kit service mock has no provider");
           res.writeHead(200, {
             "Content-Type": "application/json",
             "Cache-Control": "no-cache"
@@ -19290,54 +19478,42 @@ function createDesignKitPlugin(options = {}) {
               categoryName: "Analytics",
               isEssential: false,
               requiresConsent: true,
-              purposes: [
-                "Analytics",
-                "Performance Measurement",
-                "Content Personalization"
-              ],
-              legalBasis: ["Consent", "Legitimate Interest"],
-              technologiesUsed: ["Cookies", "Pixel Tags", "JavaScript"],
+              // Match production's compatibility projections so
+              // already-published customer templates preview the
+              // same contract while `declaration` remains canonical.
+              purposes: declaration.purposes.map((purpose) => purpose.name),
+              legalBasis: declaration.legalProfile.processingGrounds.map(
+                (ground) => ground.label
+              ),
+              technologiesUsed: declaration.technologies,
               provider: {
-                name: "Google Ireland Limited",
-                address: "Gordon House, Barrow Street, Dublin 4, Ireland",
-                privacyPolicyUrl: "https://policies.google.com/privacy",
-                cookiePolicyUrl: "https://policies.google.com/technologies/cookies",
-                dpoContactUrl: "https://support.google.com/policies/contact/general_privacy_form",
-                dataRecipients: ["Google LLC (USA)", "Alphabet Inc."]
+                name: provider.name,
+                address: provider.address,
+                dpoContactUrl: provider.privacyContact,
+                privacyPolicyUrl: declaration.links.privacyPolicyUrl,
+                cookiePolicyUrl: declaration.links.cookiePolicyUrl,
+                dataRecipients: declaration.recipients.map(
+                  (recipient) => recipient.name
+                )
               },
               dataProcessing: {
-                dataTypes: [
-                  "IP Address",
-                  "Browser Type",
-                  "Device Info",
-                  "Pages Visited"
-                ],
-                processingCountries: ["Ireland", "Finland"],
-                transferCountries: ["USA"],
-                retentionPeriod: "26 months"
+                dataTypes: declaration.dataCategories,
+                processingCountries: declaration.processingLocations.map(
+                  (location) => location.name
+                ),
+                transferCountries: declaration.transfers.map(
+                  (transfer) => transfer.destination
+                ),
+                retentionPeriod: declaration.retention.map((item) => item.period).join(" / ")
               },
               storage: {
-                items: [
-                  {
-                    key: "_ga",
-                    type: "Cookie",
-                    duration: "2 years",
-                    description: "Distinguishes users."
-                  },
-                  {
-                    key: "_gid",
-                    type: "Cookie",
-                    duration: "24 hours",
-                    description: "Distinguishes users."
-                  },
-                  {
-                    key: "_gat",
-                    type: "Cookie",
-                    duration: "1 minute",
-                    description: "Throttles request rate."
-                  }
-                ]
-              }
+                maxDeviceStorage: declaration.deviceStorage.maximumDuration,
+                items: declaration.deviceStorage.items.map((item) => ({
+                  ...item,
+                  type: item.type === "cookie" ? "Cookie" : item.type
+                }))
+              },
+              declaration
             })
           );
           return;

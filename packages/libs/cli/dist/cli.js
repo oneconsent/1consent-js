@@ -20574,6 +20574,11 @@ function date4(params) {
 // ../../../node_modules/.pnpm/zod@4.4.3/node_modules/zod/v4/classic/external.js
 config(en_default());
 
+// ../../contracts/dist/consent-publication.js
+var CONSENT_EVENT_MAX_BODY_BYTES = 16 * 1024;
+var CONSENT_STRING_MAX_LENGTH = 8 * 1024;
+var CONSENT_PUBLICATION_TOKEN_MAX_LENGTH = 4 * 1024;
+
 // ../../contracts/dist/framework-config.js
 var NOTICE_POSITIONS = [
   "center-center",
@@ -20710,6 +20715,7 @@ var runtimeConfigSchema = external_exports.object({
     noticeVersion: external_exports.string().min(1).max(20),
     configVersion: external_exports.string().min(1).max(20)
   }).optional(),
+  consentPublicationToken: external_exports.string().min(1).max(CONSENT_PUBLICATION_TOKEN_MAX_LENGTH).optional(),
   machine: external_exports.enum(["P", "S", "D"]),
   languages: languagesConfigSchema,
   cmp: cmpConfigSchema,
@@ -20746,6 +20752,7 @@ var localizedLayerContentSchema = external_exports.object({
   legalLinks: external_exports.array(external_exports.object({ label: external_exports.string(), url: external_exports.string() }))
 });
 var localizedContentSchema = localizedLayerContentSchema.extend({
+  templateLabels: external_exports.record(external_exports.string(), external_exports.string()).optional(),
   details: localizedLayerContentSchema.optional(),
   alwaysActiveLabel: external_exports.string().optional(),
   categoryLabels: external_exports.record(external_exports.string(), external_exports.object({
@@ -20947,6 +20954,7 @@ function validateMutationScopePair(value, context) {
 }
 var CLI_FILENAME_PATTERN = new RegExp("^(?!\\.{1,2}$)[^/\\\\\\x00]+$", "u");
 var CliFilenameSchema = external_exports.string().trim().min(1).max(255).regex(CLI_FILENAME_PATTERN, "filename must be a single local basename without path separators");
+var DESIGN_FILE_CAPACITY = 100;
 var CliSyncFileSchema = external_exports.object({
   kind: external_exports.enum(["vars", "styles", "view", "template"]),
   filename: CliFilenameSchema,
@@ -20959,8 +20967,8 @@ var CliSharedFileSchema = external_exports.object({
 function hasUniqueFilenames(files) {
   return new Set(files.map((file2) => file2.filename)).size === files.length;
 }
-var CliSyncFilesSchema = external_exports.array(CliSyncFileSchema).max(100).refine(hasUniqueFilenames, "File names must be unique within a design");
-var CliSharedFilesSchema = external_exports.array(CliSharedFileSchema).max(100).refine(hasUniqueFilenames, "Shared file names must be unique within a collection");
+var CliSyncFilesSchema = external_exports.array(CliSyncFileSchema).max(DESIGN_FILE_CAPACITY).refine(hasUniqueFilenames, "File names must be unique within a design");
+var CliSharedFilesSchema = external_exports.array(CliSharedFileSchema).max(DESIGN_FILE_CAPACITY).refine(hasUniqueFilenames, "Shared file names must be unique within a collection");
 var CliDesignPayloadSchema = external_exports.object({
   shortId: CliShortIdSchema.optional(),
   name: external_exports.string().trim().min(1).max(100),
@@ -21150,7 +21158,7 @@ function fnv1a36(input) {
   return hash2.toString(36);
 }
 function computeStructuralVersion(services, categories) {
-  const serviceParts = services.map((s) => `${s.id}\0${s.name ?? ""}\0${s.tag ?? ""}\0${s.categoryId ?? ""}\0${s.essential ? 1 : 0}${s.usSensitive ? "\x001" : ""}`).sort();
+  const serviceParts = services.map((s) => `${s.id}\0${s.name ?? ""}\0${s.tag ?? ""}\0${s.categoryId ?? ""}\0${s.essential ? 1 : 0}${s.catalogServiceKey ? `\0k\0${s.catalogServiceKey}` : ""}${s.usSensitive ? "\x001" : ""}`).sort();
   const categoryParts = categories.map((c) => `${c.id}\0${c.name}\0${c.essential ? 1 : 0}`).sort();
   return fnv1a36(`s:${serviceParts.join("")}|c:${categoryParts.join("")}`);
 }
@@ -22998,7 +23006,7 @@ async function prepareScopeResources(baseDir, workspaceRoot, includeStandaloneDe
       const tokens = tokenThemeConfigSchema.parse(await import_fs_extra5.default.readJson(tokensPath));
       themes.push({
         shortId: entry,
-        name: entry,
+        name: tokens.meta.name,
         tokens
       });
     }
