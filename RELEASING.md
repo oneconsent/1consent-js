@@ -34,7 +34,7 @@ README examples, and npm registry state.
 
 ## Beta publishing policy
 
-The workflow is [Publish npm beta](.github/workflows/publish-npm.yml). It runs only from an
+The workflow is [Publish npm beta](.github/workflows/publish-npm.yml). Publishing runs only from an
 immutable `npm-v<version>` beta tag whose commit is contained in `main`. Its publishing job uses
 the protected `npm-beta` environment, validates the exact artifacts, and includes npm provenance.
 
@@ -59,10 +59,12 @@ The corrected first release is `0.1.0-beta.1`; the failed tag remains unchanged.
 3. Dispatch **Publish npm beta** from the tag with operation `publish`. Select publisher
    `bootstrap-token` for the first `0.1.0-beta.1` release, or `trusted-publisher` for later betas.
 4. Review each staged tarball in npm, then approve it with 2FA.
-5. Dispatch the same workflow from the same tag with operation `verify`.
+5. Dispatch the workflow from protected `main` with operation `verify` and `release_tag` set to
+   the immutable tag. Read-only verification uses the reviewed verifier at the workflow commit
+   while checking the original tagged artifacts, release identity, and protected environment.
+   It cannot stage packages and has no npm credential or OIDC permission.
 6. Confirm exact tarball integrity, `beta` tags, clean installation/execution, and verified provenance
-   before advertising the release. After the first verified release, replace the README's
-   unpublished-preview notice with the actual published beta status.
+   before advertising the release. Keep the README's published beta status current.
 
 A pending stage is not a published version. Approve it before rerunning, or reject it explicitly
 before restaging the same reviewed tag. The workflow skips an already published version only if

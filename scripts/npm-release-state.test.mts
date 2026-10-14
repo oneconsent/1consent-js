@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -17,25 +17,29 @@ import {
     releaseVersion,
 } from "./npm-release-state.mts";
 
-function executeStagingStep(environment: Record<string, string>): {
-    status: number | null;
-    calls: string[];
-    stderr: string;
-} {
+function workflowScript(stepName: string): string {
     const workflow = readFileSync(
         new URL("../.github/workflows/publish-npm.yml", import.meta.url),
         "utf8",
     );
     assert.doesNotMatch(workflow, /^\s*npm publish\b/m);
     const step = workflow.match(
-        /- name: Stage reviewed packages for npm 2FA approval[\s\S]*? {8}run: \|\n(?<script>(?: {10}.*\n)+)/,
+        new RegExp(`- name: ${stepName}[\\s\\S]*? {8}run: \\|\\n(?<script>(?: {10}.*\\n)+)`),
     );
     const source = step?.groups?.script;
-    assert.ok(source, "The workflow must stage packages for human approval");
-    const script = source
+    assert.ok(source, `Missing workflow script: ${stepName}`);
+    return source
         .split("\n")
         .map((line) => line.slice(10))
         .join("\n");
+}
+
+function executeStagingStep(environment: Record<string, string>): {
+    status: number | null;
+    calls: string[];
+    stderr: string;
+} {
+    const script = workflowScript("Stage reviewed packages for npm 2FA approval");
     const directory = mkdtempSync(resolve(tmpdir(), "1consent-stage-workflow-test-"));
     const log = resolve(directory, "calls.log");
     for (const name of ["react", "nextjs", "cli"])
@@ -392,4 +396,167 @@ test("network and registry failures stop publication instead of enabling bootstr
             /refusing to infer package absence/,
         );
     }
+});
+
+function executeReleaseSelection(environment: Record<string, string>) {
+    const directory = mkdtempSync(resolve(tmpdir(), "1consent-release-selection-"));
+    const output = resolve(directory, "outputs");
+    try {
+        const result = spawnSync(
+            "bash",
+            ["-euo", "pipefail", "-c", workflowScript("Derive the prerelease version")],
+            {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    REF_TYPE: "tag",
+                    RELEASE_TAG: "npm-v0.1.0-beta.1",
+                    WORKFLOW_REF: "refs/tags/npm-v0.1.0-beta.1",
+                    OPERATION: "publish",
+                    REQUESTED_RELEASE_TAG: "",
+                    ...environment,
+                    GITHUB_OUTPUT: output,
+                },
+            },
+        );
+        if (result.error) throw result.error;
+        return {
+            status: result.status,
+            stderr: result.stderr,
+            output: existsSync(output) ? readFileSync(output, "utf8") : "",
+        };
+    } finally {
+        rmSync(directory, { recursive: true, force: true });
+    }
+}
+
+test("publishing uses only the dispatched immutable tag", () => {
+    const result = executeReleaseSelection({});
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.output, "version=0.1.0-beta.1\ntag=npm-v0.1.0-beta.1\n");
+});
+
+test("main may select an existing immutable tag only for read-only verification", () => {
+    const result = executeReleaseSelection({
+        REF_TYPE: "branch",
+        RELEASE_TAG: "main",
+        WORKFLOW_REF: "refs/heads/main",
+        OPERATION: "verify",
+        REQUESTED_RELEASE_TAG: "npm-v0.1.0-beta.1",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.output, "version=0.1.0-beta.1\ntag=npm-v0.1.0-beta.1\n");
+});
+
+for (const [label, environment] of [
+    [
+        "publishing from main",
+        {
+            REF_TYPE: "branch",
+            WORKFLOW_REF: "refs/heads/main",
+            REQUESTED_RELEASE_TAG: "npm-v0.1.0-beta.1",
+        },
+    ],
+    [
+        "verification from an unreviewed branch",
+        {
+            REF_TYPE: "branch",
+            WORKFLOW_REF: "refs/heads/feature",
+            OPERATION: "verify",
+            REQUESTED_RELEASE_TAG: "npm-v0.1.0-beta.1",
+        },
+    ],
+    [
+        "missing main verification tag",
+        { REF_TYPE: "branch", WORKFLOW_REF: "refs/heads/main", OPERATION: "verify" },
+    ],
+    ["overriding a published tag", { REQUESTED_RELEASE_TAG: "npm-v0.1.0-beta.2" }],
+    ["stable tag", { RELEASE_TAG: "npm-v1.0.0" }],
+    ["malformed tag", { RELEASE_TAG: "npm-v0.1.0-beta.1;echo bad" }],
+] satisfies Array<readonly [string, Record<string, string>]>) {
+    test(`release selection rejects ${label}`, () => {
+        const result = executeReleaseSelection(environment);
+        assert.notEqual(result.status, 0);
+        assert.equal(result.output, "");
+    });
+}
+
+for (const operation of ["verify", "publish", "wrong-publish-commit"]) {
+    test(`the real commit gate binds the selected tag for ${operation}`, () => {
+        const directory = mkdtempSync(resolve(tmpdir(), "1consent-tag-commit-"));
+        const git = (...args: string[]) =>
+            execFileSync("git", args, { cwd: directory, encoding: "utf8" }).trim();
+        try {
+            git("init", "--quiet", "--initial-branch=main");
+            git(
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.invalid",
+                "commit",
+                "--quiet",
+                "--allow-empty",
+                "-m",
+                "reviewed release",
+            );
+            const releaseCommit = git("rev-parse", "HEAD");
+            git(
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.invalid",
+                "commit",
+                "--quiet",
+                "--allow-empty",
+                "-m",
+                "reviewed verifier",
+            );
+            const verifierCommit = git("rev-parse", "HEAD");
+            git("update-ref", "refs/remotes/origin/main", verifierCommit);
+            git("checkout", "--quiet", "--detach", releaseCommit);
+            const output = resolve(directory, "outputs");
+            const result = spawnSync(
+                "bash",
+                [
+                    "-euo",
+                    "pipefail",
+                    "-c",
+                    workflowScript("Require the tagged commit to be reviewed on main"),
+                ],
+                {
+                    cwd: directory,
+                    encoding: "utf8",
+                    env: {
+                        ...process.env,
+                        GITHUB_OUTPUT: output,
+                        OPERATION: operation === "verify" ? "verify" : "publish",
+                        GITHUB_SHA: operation === "publish" ? releaseCommit : verifierCommit,
+                    },
+                },
+            );
+            if (result.error) throw result.error;
+            if (operation === "wrong-publish-commit") {
+                assert.notEqual(result.status, 0);
+                assert.match(result.stderr, /exact dispatched tag commit/);
+            } else {
+                assert.equal(result.status, 0, result.stderr);
+                assert.equal(readFileSync(output, "utf8"), `commit=${releaseCommit}\n`);
+            }
+        } finally {
+            rmSync(directory, { recursive: true, force: true });
+        }
+    });
+}
+
+test("release checkout cannot be shadowed by a branch with the tag name", () => {
+    const workflow = readFileSync(
+        new URL("../.github/workflows/publish-npm.yml", import.meta.url),
+        "utf8",
+    );
+    assert.ok(workflow.includes("ref: refs/tags/${{ steps.release.outputs.tag }}"));
+    assert.equal(workflow.match(/ref: \$\{\{ needs\.prepare\.outputs\.commit \}\}/g)?.length, 2);
+    assert.doesNotMatch(
+        workflow,
+        /ref: \$\{\{ (?:steps\.release|needs\.prepare)\.outputs\.tag \}\}/,
+    );
 });

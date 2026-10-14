@@ -6,8 +6,7 @@ import { fileURLToPath } from "node:url";
 const RELEASE_PACKAGES = ["@1consent/react", "@1consent/nextjs", "@1consent/cli"] as const;
 const SLSA_PREDICATE = "https://slsa.dev/provenance/v1";
 const IN_TOTO_STATEMENT = "https://in-toto.io/Statement/v1";
-const GITHUB_BUILD_TYPE =
-    "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1";
+const GITHUB_BUILD_TYPE = "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1";
 const GITHUB_HOSTED_BUILDER = "https://github.com/actions/runner/github-hosted";
 const SIGSTORE_BUNDLE_MEDIA_TYPE = "application/vnd.dev.sigstore.bundle.v0.3+json";
 const IN_TOTO_PAYLOAD_TYPE = "application/vnd.in-toto+json";
@@ -55,11 +54,15 @@ function fail(message: string): never {
     throw new Error(`[NpmProvenance] ${message}`);
 }
 
+function isRecord(value: unknown): value is JsonRecord {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function record(value: unknown, label: string): JsonRecord {
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    if (!isRecord(value)) {
         fail(`${label} must be an object`);
     }
-    return value as JsonRecord; // ASSERTION: The runtime guard proves a non-null, non-array object; TypeScript cannot infer its index signature.
+    return value;
 }
 
 function array(value: unknown, label: string): unknown[] {
@@ -76,7 +79,9 @@ function exactKeys(value: JsonRecord, expected: readonly string[], label: string
     const actual = Object.keys(value).sort();
     const required = [...expected].sort();
     if (JSON.stringify(actual) !== JSON.stringify(required)) {
-        fail(`${label} fields changed; expected ${required.join(", ")}, received ${actual.join(", ")}`);
+        fail(
+            `${label} fields changed; expected ${required.join(", ")}, received ${actual.join(", ")}`,
+        );
     }
 }
 
@@ -153,7 +158,11 @@ function decodeUtf8Extension(bytes: Buffer): string {
 }
 
 export function certificateExtensions(rawCertificateBase64: string): Map<string, string> {
-    if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(rawCertificateBase64)) {
+    if (
+        !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
+            rawCertificateBase64,
+        )
+    ) {
         fail("provenance certificate is not canonical base64");
     }
     const certificate = Buffer.from(rawCertificateBase64, "base64");
@@ -233,7 +242,11 @@ function assertProvenanceBundle(
     const wrapper = record(bundleValue, `${packageName} attestation wrapper`);
     exact(wrapper.predicateType, SLSA_PREDICATE, `${packageName} attestation predicate`);
     const bundle = record(wrapper.bundle, `${packageName} Sigstore bundle`);
-    exact(bundle.mediaType, SIGSTORE_BUNDLE_MEDIA_TYPE, `${packageName} Sigstore bundle media type`);
+    exact(
+        bundle.mediaType,
+        SIGSTORE_BUNDLE_MEDIA_TYPE,
+        `${packageName} Sigstore bundle media type`,
+    );
 
     const envelope = record(bundle.dsseEnvelope, `${packageName} DSSE envelope`);
     exact(envelope.payloadType, IN_TOTO_PAYLOAD_TYPE, `${packageName} DSSE payload type`);
@@ -298,11 +311,7 @@ function assertProvenanceBundle(
     );
     if (dependencies.length !== 1) fail(`${packageName} provenance must resolve one source tree`);
     const source = record(dependencies[0], `${packageName} resolved source`);
-    exact(
-        source.uri,
-        `git+${repositoryUrl}@${expected.ref}`,
-        `${packageName} resolved source URI`,
-    );
+    exact(source.uri, `git+${repositoryUrl}@${expected.ref}`, `${packageName} resolved source URI`);
     const sourceDigest = record(source.digest, `${packageName} resolved source digest`);
     exact(sourceDigest.gitCommit, expected.commit, `${packageName} resolved commit`);
 
@@ -325,8 +334,8 @@ function assertProvenanceBundle(
         string(certificate.rawBytes, `${packageName} certificate bytes`),
     );
     const workflowIdentity = `${repositoryUrl}/${expected.workflow}@${expected.ref}`;
-    const owner = expected.repository.split("/")[0];
-    if (!owner) fail("repository owner is missing");
+    const [owner, repositoryName] = expected.repository.split("/");
+    if (!owner || !repositoryName) fail("repository owner or name is missing");
     const expectedExtensions = new Map<string, string>([
         [FULCIO_OIDS.issuer, "https://token.actions.githubusercontent.com"],
         [FULCIO_OIDS.buildSignerUri, workflowIdentity],
@@ -346,7 +355,7 @@ function assertProvenanceBundle(
         [FULCIO_OIDS.deploymentEnvironment, expected.environment],
         [
             FULCIO_OIDS.tokenSubject,
-            `repo:${expected.repository}:environment:${expected.environment}`,
+            `repo:${owner}@${ownerId}/${repositoryName}@${repositoryId}:environment:${expected.environment}`,
         ],
     ]);
     for (const [oid, expectedValue] of expectedExtensions) {
@@ -386,7 +395,7 @@ export function assertVerifiedReleaseProvenance(
 
     for (const packageName of RELEASE_PACKAGES) {
         const matches = verified.filter((entry) => {
-            if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return false;
+            if (!isRecord(entry)) return false;
             return entry.name === packageName && entry.version === expected.version;
         });
         if (matches.length !== 1) {
@@ -399,13 +408,10 @@ export function assertVerifiedReleaseProvenance(
             SLSA_PREDICATE,
             `${packageName} provenance metadata`,
         );
-        const provenanceBundles = array(attestations.bundles, `${packageName} verified bundles`).filter(
-            (bundle) =>
-                typeof bundle === "object" &&
-                bundle !== null &&
-                !Array.isArray(bundle) &&
-                bundle.predicateType === SLSA_PREDICATE,
-        );
+        const provenanceBundles = array(
+            entry.attestationBundles,
+            `${packageName} verified bundles`,
+        ).filter((bundle) => isRecord(bundle) && bundle.predicateType === SLSA_PREDICATE);
         if (provenanceBundles.length !== 1) {
             fail(`${packageName} must have exactly one npm-verified SLSA v1 provenance bundle`);
         }
