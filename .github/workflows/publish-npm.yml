@@ -11,6 +11,10 @@ on:
         options:
           - publish
           - verify
+      release_tag:
+        description: Existing immutable beta tag to verify when dispatching from main; leave empty when publishing
+        required: false
+        type: string
       publisher:
         description: Use a stage-only token for the first release, then the configured trusted publisher
         required: true
@@ -37,36 +41,59 @@ jobs:
     timeout-minutes: 10
     outputs:
       version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      commit: ${{ steps.source.outputs.commit }}
     steps:
       - name: Derive the prerelease version
         id: release
         env:
           REF_TYPE: ${{ github.ref_type }}
           RELEASE_TAG: ${{ github.ref_name }}
+          WORKFLOW_REF: ${{ github.ref }}
+          OPERATION: ${{ inputs.operation }}
+          REQUESTED_RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          if [[ "$REF_TYPE" != "tag" ]]; then
-            echo "Select an immutable npm-v<version> tag when dispatching this workflow." >&2
-            exit 1
+          if [[ "$OPERATION" == "verify" && "$WORKFLOW_REF" == "refs/heads/main" ]]; then
+            RELEASE_TAG="$REQUESTED_RELEASE_TAG"
+          else
+            if [[ "$REF_TYPE" != "tag" ]]; then
+              echo "Publishing requires an immutable beta tag; branch verification requires main." >&2
+              exit 1
+            fi
+            if [[ -n "$REQUESTED_RELEASE_TAG" ]]; then
+              echo "release_tag is only allowed for read-only verification from main." >&2
+              exit 1
+            fi
           fi
           if [[ ! "$RELEASE_TAG" =~ ^npm-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-beta\.(0|[1-9][0-9]*)$ ]]; then
             echo "Tag must be a beta prerelease such as npm-v0.1.0-beta.0." >&2
             exit 1
           fi
           echo "version=${RELEASE_TAG#npm-v}" >> "$GITHUB_OUTPUT"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Checkout complete release history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: refs/tags/${{ steps.release.outputs.tag }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Require the tagged commit to be reviewed on main
+        id: source
+        env:
+          OPERATION: ${{ inputs.operation }}
         run: |
-          tagged_commit="$(git rev-parse "${GITHUB_SHA}^{commit}")"
+          tagged_commit="$(git rev-parse HEAD)"
+          if [[ "$OPERATION" == "publish" && "$tagged_commit" != "$(git rev-parse "${GITHUB_SHA}^{commit}")" ]]; then
+            echo "Publishing must use the exact dispatched tag commit." >&2
+            exit 1
+          fi
           if ! git merge-base --is-ancestor "$tagged_commit" "refs/remotes/origin/main"; then
             echo "The npm release tag must point to a commit contained in main." >&2
             exit 1
           fi
+          echo "commit=$tagged_commit" >> "$GITHUB_OUTPUT"
 
   publish:
     name: Build and stage npm beta
@@ -83,6 +110,7 @@ jobs:
       - name: Checkout tagged release
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ needs.prepare.outputs.commit }}
           persist-credentials: false
 
       - name: Require a public provenance release
@@ -208,7 +236,14 @@ jobs:
       - name: Checkout tagged release
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Load the reviewed verifier from this workflow commit
+        env:
+          VERIFIER_COMMIT: ${{ github.sha }}
+        run: git show "${VERIFIER_COMMIT}:scripts/verify-npm-provenance.mts" > "$RUNNER_TEMP/verify-npm-provenance.mts"
 
       - name: Set up Node.js for registry verification
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -241,6 +276,8 @@ jobs:
       - name: Install, execute, and verify exact release provenance
         env:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_REF: refs/tags/${{ needs.prepare.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
         run: |
           set -euo pipefail
           consumer_dir="$(mktemp -d)"
@@ -263,13 +300,13 @@ jobs:
           node --conditions=react-server --input-type=module --eval \
             'import * as sdk from "@1consent/nextjs"; if ("useConsent" in sdk) throw new Error("Next.js RSC export leaks useConsent"); for (const name of ["OneConsent", "OneConsentProvider"]) if (typeof sdk[name] !== "function") throw new Error(`Missing Next.js RSC export ${name}`);'
           npm audit signatures --json --include-attestations > npm-audit-signatures.json
-          node "$GITHUB_WORKSPACE/scripts/verify-npm-provenance.mts" \
+          node "$RUNNER_TEMP/verify-npm-provenance.mts" \
             --audit-report npm-audit-signatures.json \
             --version "$RELEASE_VERSION" \
             --repository "$NPM_PUBLIC_SOURCE_REPOSITORY" \
             --workflow .github/workflows/publish-npm.yml \
-            --ref "$GITHUB_REF" \
-            --commit "$GITHUB_SHA" \
+            --ref "$RELEASE_REF" \
+            --commit "$RELEASE_COMMIT" \
             --environment npm-beta
 
       - name: Record verified public installation

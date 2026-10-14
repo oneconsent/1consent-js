@@ -75,6 +75,7 @@ export const PUBLIC_RELEASE_FILES = [
     "scripts/public-release-manifest.mjs",
     "scripts/public-release-manifest.test.mjs",
     "scripts/smoke-public-packages.mjs",
+    "scripts/fixtures/npm-audit-beta1.json",
     "scripts/verify-npm-provenance.mts",
     "scripts/verify-npm-provenance.test.mts",
 ].sort();

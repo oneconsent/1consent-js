@@ -25,8 +25,8 @@
     },
     {
       "path": ".github/workflows/publish-npm.yml",
-      "bytes": 11764,
-      "sha256": "52a8a56e7f64affecd61a453f3e9a07947768e0138b4a327d1739e05c9afb01f"
+      "bytes": 13493,
+      "sha256": "ff5dbc0a6bbede029cfc15c6170efab948702acc2fac3831d7374ad839cb20ca"
     },
     {
       "path": ".github/workflows/quality.yml",
@@ -50,13 +50,13 @@
     },
     {
       "path": "README.md",
-      "bytes": 3589,
-      "sha256": "67cedd3a820d103b3244b8bff0ff13828949414a28d6304c2dcff0c757427aa8"
+      "bytes": 3564,
+      "sha256": "c0529e3835c330546cdd596b1cc24ac2254d9dd0c9431cd1b4aa84997a5516bc"
     },
     {
       "path": "RELEASING.md",
-      "bytes": 4509,
-      "sha256": "daf7083585f5201c929bb6fb415d317188381fb56120258bef754d51b8ae69bd"
+      "bytes": 4728,
+      "sha256": "88b8a509277f81e636850608424618d5942078882e611dae5e86fb333afef37e"
     },
     {
       "path": "SECURITY.md",
@@ -239,6 +239,11 @@
       "sha256": "e98f88c38cd50de984f5d26e2d2c0255c07d0bb8c6e36d3f9ef0f643505875dd"
     },
     {
+      "path": "scripts/fixtures/npm-audit-beta1.json",
+      "bytes": 54454,
+      "sha256": "3d56ac964dc9b130b751218701e62700a8ea15f355761fb4487586c9847f7e02"
+    },
+    {
       "path": "scripts/npm-pack-report.mts",
       "bytes": 2936,
       "sha256": "6971f28a7fa08b12756565c2141dbe4dc187da9390b87a7cb3b015f37e89c1a4"
@@ -255,13 +260,13 @@
     },
     {
       "path": "scripts/npm-release-state.test.mts",
-      "bytes": 13781,
-      "sha256": "8660c78403b168623f75f563936a9dd6ba0126246e9e86d06e14ed78ff93a57b"
+      "bytes": 19993,
+      "sha256": "542997e289efdffe699e5d9a6a6bb11fdc3a974d3453f4983bf49605e11e7e46"
     },
     {
       "path": "scripts/public-release-manifest.mjs",
-      "bytes": 9851,
-      "sha256": "faea2962f796ef1112dece457dba11a4b982ff0a1d65ef52abdfd6d3085afafc"
+      "bytes": 9896,
+      "sha256": "68427e561a0dd22fad75a92586ec5c15882d25e37d46221ec9aff11a68cd9df2"
     },
     {
       "path": "scripts/public-release-manifest.test.mjs",
@@ -275,13 +280,13 @@
     },
     {
       "path": "scripts/verify-npm-provenance.mts",
-      "bytes": 21066,
-      "sha256": "4d09660c81eff83b7e1824695aa840903dfdd3e43206cda29d8635cd48cceff3"
+      "bytes": 21003,
+      "sha256": "5fdd86aecd9d87321311ef9c78549fe59fc73b875a9a93873a4dd5281adce12c"
     },
     {
       "path": "scripts/verify-npm-provenance.test.mts",
-      "bytes": 9907,
-      "sha256": "f47d79328d38cd83637bf1a7f612335e55bc17c5e00802287e4329435853fece"
+      "bytes": 11126,
+      "sha256": "c1d55c39c1865e32f6b69e7535f559b161d9d1c79565fb41dcc3bae14c2c8838"
     }
   ]
 }
