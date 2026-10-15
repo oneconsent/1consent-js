@@ -95,8 +95,8 @@
     },
     {
       "path": "packages/libs/cli/dist/design-kit/runtime.js",
-      "bytes": 147294,
-      "sha256": "9de863db6bd537ba69746cf24efc100a707be360c21fa494da9af73770fb802b"
+      "bytes": 147323,
+      "sha256": "a73c413a90d95b6ada355af89fbaba3ac136d53c3e3cef5e3514c6e1173c40ce"
     },
     {
       "path": "packages/libs/cli/dist/design-kit/ui/assets/index.css",
