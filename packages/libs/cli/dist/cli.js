@@ -21833,7 +21833,7 @@ function getWorkspaceRoot(cwd = process.cwd()) {
 
 // src/package-identity.ts
 var CLI_PACKAGE_NAME = "@1consent/cli";
-var CLI_VERSION = "0.1.0-beta.1";
+var CLI_VERSION = "0.1.0-beta.2";
 
 // src/commands/init.ts
 var ENDPOINTS = {
