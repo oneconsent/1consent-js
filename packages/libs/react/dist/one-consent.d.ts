@@ -16,14 +16,17 @@
  * React fastpath. React never reconciles inside `dangerouslySetInnerHTML`
  * content, so the engine can insert promoted nodes there without hydration
  * mismatches. On the server-rendered page the inline call executes at HTML
- * parse time (before first paint); on SPA mounts innerHTML scripts never run
- * and the engine's MutationObserver promotes the template instead.
+ * parse time when the complete gate is encountered; on SPA mounts innerHTML
+ * scripts never run and the engine's MutationObserver promotes the template.
+ * Parsing may continue after the browser's first paint. Neither streamed
+ * gate arrival nor an external download has a universal before-paint deadline.
  *
  * Head placement caveat: the wrapper `<div>` is not valid inside `<head>` —
  * the HTML parser silently ends `<head>` at the div and reparents it (and
  * everything after it) into `<body>`, which triggers a dev-mode hydration
- * mismatch. Promotion works either way, but top-of-`<body>` placement is
- * just as early and keeps the markup valid.
+ * mismatch. Use body placement with the bootstrap before governed resources.
+ * Earlier gate placement reduces activation latency without promising a
+ * first-paint deadline.
  */
 import type { ReactNode } from "react";
 import type { RegisteredCategoryName, RegisteredServiceName } from "./types.js";
