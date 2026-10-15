@@ -3,7 +3,7 @@
 Add the 1Consent CMP to your application, keep third-party scripts and embeds inactive until
 consent, and react to consent changes in your UI.
 
-> **Beta:** `0.1.0-beta.1` is available on npm. Install the explicit `beta` channel; these
+> **Beta:** `0.1.0-beta.2` is available on npm. Install the explicit `beta` channel; these
 > packages are prerelease software.
 
 ## Packages
