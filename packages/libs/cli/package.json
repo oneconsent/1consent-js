@@ -1,6 +1,6 @@
 {
     "name": "@1consent/cli",
-    "version": "0.1.0-beta.2",
+    "version": "0.1.0-beta.3",
     "description": "The official 1Consent CLI for design sync, publishing, and generated React consent types.",
     "type": "module",
     "license": "MIT",

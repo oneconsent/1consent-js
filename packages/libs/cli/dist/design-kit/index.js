@@ -87,18 +87,24 @@ var ANALYTICS_MAX_TIME_TO_CONSENT_MS = 24 * 60 * 60 * 1e3;
 function isPlainRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+function isPublicId(value) {
+  return typeof value === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(value) && !/^[\da-f]{8}(-[\da-f]{4}){3}-[\da-f]{12}$/i.test(value);
+}
+function isPublicRuntimeIdentity(value) {
+  return isPlainRecord(value) && [value.appId, value.frameworkId].every(isPublicId);
+}
 function isOneConsentConfig(config2) {
   if (!isPlainRecord(config2))
     return false;
   const c = config2;
-  const hasBaseFields = typeof c.appId === "string" && typeof c.version === "number" && typeof c.machine === "string" && isPlainRecord(c.languages) && typeof c.languages.primary === "string" && Array.isArray(c.languages.supported) && c.languages.supported.length > 0 && isCanonicalSupportedLocale(c.languages.primary) && c.languages.supported.every(isCanonicalSupportedLocale) && new Set(c.languages.supported).size === c.languages.supported.length && c.languages.supported.includes(c.languages.primary) && isPlainRecord(c.cmp) && typeof c.cmp.main === "string" && // uiData is REQUIRED (1CO-180): a pre-1CO-180 snapshot (cmp.i18n, no
+  const hasBaseFields = typeof c.appId === "string" && (c.publicIdentity === void 0 || isPublicRuntimeIdentity(c.publicIdentity)) && typeof c.version === "number" && isPlainRecord(c.languages) && Array.isArray(c.languages.supported) && isCanonicalSupportedLocale(c.languages.primary) && c.languages.supported.every(isCanonicalSupportedLocale) && new Set(c.languages.supported).size === c.languages.supported.length && c.languages.supported.includes(c.languages.primary) && isPlainRecord(c.cmp) && typeof c.cmp.main === "string" && // uiData is REQUIRED (1CO-180): a pre-1CO-180 snapshot (cmp.i18n, no
   // uiData) would mount blank-label banners on the pinned SDK — it must
   // fail this gate so the worker degrades to the CMP-API fallback and
   // self-heal regenerates the snapshot on first hit.
-  typeof c.cmp.uiData === "string" && typeof c.cmp.serviceDetails === "string" && Array.isArray(c.categories) && Array.isArray(c.services) && Array.isArray(c.scripts) && typeof c.appearance === "object" && c.appearance !== null && typeof c.framework === "object" && c.framework !== null;
+  typeof c.cmp.uiData === "string" && typeof c.cmp.serviceDetails === "string" && Array.isArray(c.categories) && Array.isArray(c.services) && Array.isArray(c.scripts) && isPlainRecord(c.appearance) && isPlainRecord(c.framework);
   if (!hasBaseFields)
     return false;
-  if (!["P", "S", "D"].includes(c.machine))
+  if (c.machine !== "P" && c.machine !== "S" && c.machine !== "D")
     return false;
   return true;
 }
@@ -14634,8 +14640,6 @@ var LOGO_ALIGNMENTS = ["left", "center"];
 var BUTTON_ORDERS = ["accept-first", "reject-first"];
 var BUTTON_ALIGNMENTS = ["left", "right", "center", "full"];
 var BUTTON_EMPHASIS = ["equal", "emphasize-accept"];
-var NOTICE_POSITION_SET = new Set(NOTICE_POSITIONS);
-var DETAILS_POSITION_SET = new Set(DETAILS_POSITIONS);
 var LOGO_ALIGNMENT_SET = new Set(LOGO_ALIGNMENTS);
 var BUTTON_ORDER_SET = new Set(BUTTON_ORDERS);
 var BUTTON_ALIGNMENT_SET = new Set(BUTTON_ALIGNMENTS);
@@ -18720,12 +18724,117 @@ ${lines.join("\n")}
 }
 
 // src/frame-check.ts
-import { request as httpRequest } from "node:http";
-import { request as httpsRequest } from "node:https";
+import { request as httpRequest2 } from "node:http";
+import { request as httpsRequest2 } from "node:https";
 
 // ../network-safety/dist/index.js
 import { promises as dns } from "node:dns";
-import { BlockList, isIP } from "node:net";
+import { BlockList, isIP as isIP2 } from "node:net";
+
+// ../network-safety/dist/public-text.js
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { isIP } from "node:net";
+var ERROR_MESSAGES = {
+  timeout: "Public document request exceeded its time limit",
+  response_too_large: "Public document response exceeds its byte limit",
+  redirect_limit: "Public document exceeded its redirect limit",
+  redirect_missing: "Public document redirect has no destination",
+  http_status: "Public document returned an unsuccessful HTTP status",
+  unsupported_encoding: "Public document returned an unsupported content encoding",
+  transport_failure: "Public document transport failed"
+};
+var PublicTextError = class extends Error {
+  code;
+  constructor(code) {
+    super(ERROR_MESSAGES[code]);
+    this.code = code;
+    this.name = "PublicTextError";
+  }
+};
+function publicResponseHeader(headers, name) {
+  const value = headers[name];
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+function readBody(response, maxBodyBytes) {
+  return new Promise((resolve3, reject) => {
+    const encoding = publicResponseHeader(response.headers, "content-encoding");
+    if (encoding && encoding.toLowerCase() !== "identity") {
+      response.destroy();
+      reject(new PublicTextError("unsupported_encoding"));
+      return;
+    }
+    const length = Number(response.headers["content-length"]);
+    if (Number.isFinite(length) && length > maxBodyBytes) {
+      response.destroy();
+      reject(new PublicTextError("response_too_large"));
+      return;
+    }
+    const chunks = [];
+    let bytes = 0;
+    response.on("data", (chunk) => {
+      bytes += chunk.byteLength;
+      if (bytes > maxBodyBytes) {
+        response.destroy(new PublicTextError("response_too_large"));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    response.once("end", () => {
+      try {
+        resolve3(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)));
+      } catch {
+        reject(new PublicTextError("unsupported_encoding"));
+      }
+    });
+    response.once("error", reject);
+    response.once("aborted", () => reject(new PublicTextError("transport_failure")));
+  });
+}
+function createPublicTextRequester(options = {}) {
+  return (target, signal, maxBodyBytes) => {
+    const address = target.addresses[0];
+    if (!address)
+      return Promise.reject(new PublicTextError("transport_failure"));
+    const url2 = target.url;
+    const originHost = url2.hostname.replace(/^\[|\]$/gu, "");
+    const requestOptions = {
+      family: address.family === 6 ? 6 : 4,
+      hostname: address.address,
+      port: Number(url2.port || (url2.protocol === "https:" ? "443" : "80")),
+      path: `${url2.pathname}${url2.search}`,
+      method: "GET",
+      signal,
+      headers: {
+        Accept: options.accept ?? "text/html, text/plain;q=0.9",
+        "Accept-Encoding": "identity",
+        Host: url2.host,
+        "User-Agent": options.userAgent ?? "1Consent-Public-Document/1.0"
+      }
+    };
+    return new Promise((resolve3, reject) => {
+      const onResponse = (response) => {
+        const status = response.statusCode ?? 0;
+        if (status < 200 || status >= 300) {
+          const headers = response.headers;
+          response.destroy();
+          resolve3({ status, headers, body: "" });
+          return;
+        }
+        readBody(response, maxBodyBytes).then((body) => resolve3({ status, headers: response.headers, body })).catch(reject);
+      };
+      const request = url2.protocol === "https:" ? httpsRequest({
+        ...requestOptions,
+        servername: isIP(originHost) ? "" : originHost,
+        rejectUnauthorized: true
+      }, onResponse) : httpRequest(requestOptions, onResponse);
+      request.once("error", reject);
+      request.end();
+    });
+  };
+}
+
+// ../network-safety/dist/index.js
 var PublicNetworkTargetError = class extends Error {
   code;
   constructor(code, message) {
@@ -18780,7 +18889,7 @@ var mappedIpv4 = (address) => {
   if (!normalized.startsWith("::ffff:"))
     return null;
   const suffix = normalized.slice("::ffff:".length);
-  if (isIP(suffix) === 4)
+  if (isIP2(suffix) === 4)
     return suffix;
   const words = suffix.split(":");
   if (words.length !== 2)
@@ -18794,7 +18903,7 @@ var mappedIpv4 = (address) => {
 };
 function isPublicInternetAddress(address) {
   const normalized = stripIpv6Syntax(address);
-  const family = isIP(normalized);
+  const family = isIP2(normalized);
   if (family === 4)
     return !blockedAddresses.check(normalized, "ipv4");
   if (family !== 6)
@@ -18878,7 +18987,7 @@ async function resolvePublicWebUrl(input, resolve3 = resolveAllAddresses, option
     throw new PublicNetworkTargetError("non-public-literal", "Target must not be a loopback or local hostname");
   }
   let addresses;
-  const literalFamily = isIP(hostname3);
+  const literalFamily = isIP2(hostname3);
   if (literalFamily > 0) {
     addresses = [{ address: hostname3, family: literalFamily }];
   } else {
@@ -18893,7 +19002,7 @@ async function resolvePublicWebUrl(input, resolve3 = resolveAllAddresses, option
   }
   const normalizedAddresses = addresses.map(({ address }) => {
     const normalized = stripIpv6Syntax(address);
-    return { address: normalized, family: isIP(normalized) };
+    return { address: normalized, family: isIP2(normalized) };
   });
   if (normalizedAddresses.some(({ address, family }) => family === 0 || !isPublicInternetAddress(address))) {
     throw literalFamily > 0 ? new PublicNetworkTargetError(
@@ -18937,7 +19046,7 @@ function requestResolvedHeaders(target, signal) {
       response.destroy();
       resolve3(result);
     };
-    const request = url2.protocol === "https:" ? httpsRequest({ ...options, servername: url2.hostname }, onResponse) : httpRequest(options, onResponse);
+    const request = url2.protocol === "https:" ? httpsRequest2({ ...options, servername: url2.hostname }, onResponse) : httpRequest2(options, onResponse);
     request.once("error", reject);
     request.end();
   });
@@ -19142,70 +19251,9 @@ function readdirSafe(dir) {
 }
 
 // src/vendor-disclosure.ts
-import { request as httpRequest2 } from "node:http";
-import { request as httpsRequest2 } from "node:https";
 var DEFAULT_MAX_BODY_BYTES = 1e6;
 var DEFAULT_MAX_REDIRECTS2 = 3;
 var DEFAULT_TIMEOUT_MS2 = 5e3;
-function responseHeader(headers, name) {
-  const value = headers[name];
-  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
-}
-function readResponseBody(response, maxBodyBytes) {
-  return new Promise((resolve3, reject) => {
-    const contentLength = Number(response.headers["content-length"]);
-    if (Number.isFinite(contentLength) && contentLength > maxBodyBytes) {
-      response.destroy();
-      reject(new Error("Vendor disclosure response exceeds the size limit"));
-      return;
-    }
-    const chunks = [];
-    let receivedBytes = 0;
-    response.on("data", (chunk) => {
-      receivedBytes += chunk.byteLength;
-      if (receivedBytes > maxBodyBytes) {
-        response.destroy(new Error("Vendor disclosure response exceeds the size limit"));
-        return;
-      }
-      chunks.push(chunk);
-    });
-    response.once("end", () => resolve3(Buffer.concat(chunks).toString("utf8")));
-    response.once("error", reject);
-  });
-}
-function requestResolvedJson(target, signal, maxBodyBytes) {
-  const address = target.addresses[0];
-  if (!address) return Promise.reject(new Error("Target has no validated public address"));
-  const url2 = target.url;
-  const options = {
-    family: address.family === 6 ? 6 : 4,
-    headers: {
-      Accept: "application/json",
-      Host: url2.host,
-      "User-Agent": "1Consent-Design-Kit/1.0"
-    },
-    hostname: address.address,
-    method: "GET",
-    path: `${url2.pathname}${url2.search}`,
-    port: Number(url2.port || (url2.protocol === "https:" ? "443" : "80")),
-    signal
-  };
-  return new Promise((resolve3, reject) => {
-    const onResponse = (response) => {
-      const status = response.statusCode ?? 0;
-      if (status >= 300 && status < 400) {
-        const headers = response.headers;
-        response.destroy();
-        resolve3({ body: "", headers, status });
-        return;
-      }
-      readResponseBody(response, maxBodyBytes).then((body) => resolve3({ body, headers: response.headers, status })).catch(reject);
-    };
-    const request = url2.protocol === "https:" ? httpsRequest2({ ...options, servername: url2.hostname }, onResponse) : httpRequest2(options, onResponse);
-    request.once("error", reject);
-    request.end();
-  });
-}
 async function requestWithTimeout2(target, request, timeoutMs, maxBodyBytes) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -19233,7 +19281,10 @@ async function loadVendorDisclosure(module, vendorId, dependencies = {}) {
   if (!disclosureUrl) return null;
   const maxBodyBytes = dependencies.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
   const maxRedirects = dependencies.maxRedirects ?? DEFAULT_MAX_REDIRECTS2;
-  const request = dependencies.request ?? requestResolvedJson;
+  const request = dependencies.request ?? createPublicTextRequester({
+    accept: "application/json",
+    userAgent: "1Consent-Design-Kit/1.0"
+  });
   const resolve3 = dependencies.resolve ?? resolveAllAddresses;
   const timeoutMs = dependencies.timeoutMs ?? DEFAULT_TIMEOUT_MS2;
   let current = disclosureUrl;
@@ -19242,7 +19293,7 @@ async function loadVendorDisclosure(module, vendorId, dependencies = {}) {
       const target = await resolvePublicWebUrl(current, resolve3);
       const response = await requestWithTimeout2(target, request, timeoutMs, maxBodyBytes);
       if (response.status >= 300 && response.status < 400) {
-        const location = responseHeader(response.headers, "location");
+        const location = publicResponseHeader(response.headers, "location");
         if (!location || redirectCount === maxRedirects) return null;
         current = new URL(location, target.url).toString();
         continue;

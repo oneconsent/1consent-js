@@ -1,6 +1,6 @@
 {
     "name": "@1consent/react",
-    "version": "0.1.0-beta.2",
+    "version": "0.1.0-beta.3",
     "description": "React 19 consent components and hooks for the 1Consent CMP.",
     "type": "module",
     "sideEffects": false,
