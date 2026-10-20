@@ -1,6 +1,6 @@
 {
     "name": "@1consent/nextjs",
-    "version": "0.1.0-beta.2",
+    "version": "0.1.0-beta.3",
     "description": "Next.js 16 adapter and server helpers for the 1Consent React integration.",
     "type": "module",
     "sideEffects": false,
@@ -54,7 +54,7 @@
         }
     },
     "dependencies": {
-        "@1consent/react": "0.1.0-beta.2"
+        "@1consent/react": "0.1.0-beta.3"
     },
     "peerDependencies": {
         "next": ">=16.0.0 <17.0.0",
