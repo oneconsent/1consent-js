@@ -42,7 +42,7 @@ function executeStagingStep(environment: Record<string, string>): {
     const script = workflowScript("Stage reviewed packages for npm 2FA approval");
     const directory = mkdtempSync(resolve(tmpdir(), "1consent-stage-workflow-test-"));
     const log = resolve(directory, "calls.log");
-    for (const name of ["react", "nextjs", "cli"])
+    for (const name of ["react", "nextjs", "cli", "site-check"])
         mkdirSync(resolve(directory, "packages/libs", name), { recursive: true });
     try {
         const result = spawnSync(
@@ -70,6 +70,8 @@ function executeStagingStep(environment: Record<string, string>): {
                 env: {
                     ...process.env,
                     NODE_AUTH_TOKEN: "inherited-token-must-be-unset",
+                    RELEASE_TARGET: "sdk",
+                    SITE_CHECK_BOOTSTRAP_TOKEN: "",
                     STAGING_TEST_LOG: log,
                     ...environment,
                 },
@@ -144,6 +146,45 @@ test("a fully verified published release performs no staging calls", () => {
     });
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(result.calls, []);
+});
+
+test("a site check bootstrap stages only the skill using its own credential", () => {
+    const result = executeStagingStep({
+        RELEASE_TARGET: "site-check",
+        PUBLISHER_MODE: "bootstrap-token",
+        SITE_CHECK_BOOTSTRAP_TOKEN: "stage-only-fixture",
+        SITE_CHECK_STATE: "bootstrap",
+        NPM_BOOTSTRAP_TOKEN: "sdk-token-must-not-be-used",
+        REACT_STATE: "stage",
+        NEXTJS_STATE: "stage",
+        CLI_STATE: "stage",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(result.calls, ["site-check|token"]);
+});
+
+test("a site check bootstrap cannot use the SDK credential", () => {
+    const result = executeStagingStep({
+        RELEASE_TARGET: "site-check",
+        PUBLISHER_MODE: "bootstrap-token",
+        SITE_CHECK_STATE: "bootstrap",
+        NPM_BOOTSTRAP_TOKEN: "stage-only-fixture",
+    });
+    assert.notEqual(result.status, 0);
+    assert.deepEqual(result.calls, []);
+    assert.match(result.stderr, /must be a stage-only token/);
+});
+
+test("a site check update uses only OIDC and only stages the skill", () => {
+    const result = executeStagingStep({
+        RELEASE_TARGET: "site-check",
+        PUBLISHER_MODE: "trusted-publisher",
+        SITE_CHECK_BOOTSTRAP_TOKEN: "stage-only-fixture",
+        SITE_CHECK_STATE: "stage",
+        REACT_STATE: "stage",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(result.calls, ["site-check|oidc"]);
 });
 
 test("publishing uses an explicit authentication mode", () => {
@@ -433,7 +474,14 @@ function executeReleaseSelection(environment: Record<string, string>) {
 test("publishing uses only the dispatched immutable tag", () => {
     const result = executeReleaseSelection({});
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.output, "version=0.1.0-beta.1\ntag=npm-v0.1.0-beta.1\n");
+    assert.equal(result.output, "version=0.1.0-beta.1\ntarget=sdk\ntag=npm-v0.1.0-beta.1\n");
+});
+
+test("the immutable skill tag selects the skill and retains its own version", () => {
+    const tag = "npm-vsite-check-0.1.0-beta.1";
+    const result = executeReleaseSelection({ RELEASE_TAG: tag, WORKFLOW_REF: `refs/tags/${tag}` });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.output, `version=0.1.0-beta.1\ntarget=site-check\ntag=${tag}\n`);
 });
 
 test("main may select an existing immutable tag only for read-only verification", () => {
@@ -445,7 +493,20 @@ test("main may select an existing immutable tag only for read-only verification"
         REQUESTED_RELEASE_TAG: "npm-v0.1.0-beta.1",
     });
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.output, "version=0.1.0-beta.1\ntag=npm-v0.1.0-beta.1\n");
+    assert.equal(result.output, "version=0.1.0-beta.1\ntarget=sdk\ntag=npm-v0.1.0-beta.1\n");
+});
+
+test("protected main can verify the skill tag without selecting the SDK release", () => {
+    const tag = "npm-vsite-check-0.1.0-beta.1";
+    const result = executeReleaseSelection({
+        REF_TYPE: "branch",
+        RELEASE_TAG: "main",
+        WORKFLOW_REF: "refs/heads/main",
+        OPERATION: "verify",
+        REQUESTED_RELEASE_TAG: tag,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.output, `version=0.1.0-beta.1\ntarget=site-check\ntag=${tag}\n`);
 });
 
 for (const [label, environment] of [

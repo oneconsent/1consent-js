@@ -1,6 +1,6 @@
 # Release guide
 
-This guide is for maintainers of `@1consent/react`, `@1consent/nextjs`, and `@1consent/cli`.
+This guide covers `@1consent/react`, `@1consent/nextjs`, `@1consent/cli`, and `@1consent/site-check`.
 Consumer installation and integration examples are in the [README](README.md).
 
 ## Repository boundary
@@ -28,19 +28,21 @@ npm run check:secrets
 npm run verify:npm-packages
 ```
 
-These checks verify the exact file manifest, inspect all three npm tarballs, and install and
+These checks verify the exact file manifest, inspect the npm tarballs, and install and
 execute them in a clean consumer project. Before a release, also review the package metadata,
 README examples, and npm registry state.
 
 ## Beta publishing policy
 
 The workflow is [Publish npm beta](.github/workflows/publish-npm.yml). Publishing runs only from an
-immutable `npm-v<version>` beta tag whose commit is contained in `main`. Its publishing job uses
+immutable beta tag whose commit is contained in `main`. Use `npm-v<version>` for the
+three SDK packages and `npm-vsite-check-<version>` for the standalone skill. The publishing job uses
 the protected `npm-beta` environment, validates the exact artifacts, and includes npm provenance.
 
 Every beta is staged for a maintainer's npm 2FA approval. The first `0.1.0-beta.1` release uses a
 short-lived, scope-limited token with **Read and write (stage only)** permission and **2FA bypass
-disabled**. Store it only as the environment secret `NPM_BOOTSTRAP_TOKEN`. Later releases use
+disabled**. Store the skill's credential only as `SITE_CHECK_BOOTSTRAP_TOKEN` in the
+`npm-beta` environment. The SDK path uses `NPM_BOOTSTRAP_TOKEN`. Later releases use
 the configured GitHub OIDC trusted publisher with stage-only permission.
 
 For a new package, npm staging creates a publicly available `0.0.0-stage` registration placeholder.
@@ -78,5 +80,5 @@ must complete its first successful publish within npm's two-day activation windo
 configuration alone is not a verified handoff.
 
 Restrict traditional package publishing access to **Require two-factor authentication and disallow
-tokens**, delete the GitHub `NPM_BOOTSTRAP_TOKEN` secret, and revoke the temporary npm token during
+tokens**, delete the selected release's bootstrap secret, and revoke the temporary npm token during
 handoff. Verify the OIDC connection works before recording the handoff as complete.

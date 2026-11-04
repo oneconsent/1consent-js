@@ -12,6 +12,15 @@ import { pathToFileURL } from "node:url";
 
 export const PUBLIC_RELEASE_MANIFEST = "public-release-manifest.json";
 export const PUBLIC_PACKAGE_FILES = {
+    "packages/libs/site-check": [
+        "LICENSE",
+        "README.md",
+        "dist/site-check.mjs",
+        "package.json",
+        "skills/oneconsent-site-check/SKILL.md",
+        "skills/oneconsent-site-check/references/generic-prompt.md",
+        "skills/oneconsent-site-check/references/mcp.md",
+    ],
     "packages/libs/react": [
         "LICENSE",
         "README.md",
@@ -91,6 +100,9 @@ const REVIEWED_1CONSENT_PACKAGE_HOSTS = new Set([
     "web.cmp.1consent.dev",
     "web.cmp.1consent.local",
 ]);
+
+const SITE_CHECK_PACKAGE = "packages/libs/site-check";
+const SITE_CHECK_PUBLIC_ORIGINS = new Set(["1consent.app", "cdn.1consent.app"]);
 
 function normalize(path) {
     return path.replaceAll("\\", "/");
@@ -172,6 +184,17 @@ function packageMetadata(root, directory) {
     ) {
         throw new Error("[PublicReleaseManifest] Next.js adapter dependency boundary drifted");
     }
+    if (packageName === "site-check") {
+        const dependencies = manifest.dependencies;
+        if (
+            !isRecord(dependencies) ||
+            Object.keys(dependencies).length !== 1 ||
+            !/^\d+\.\d+\.\d+$/.test(dependencies.patchright) ||
+            manifest.bin?.["oneconsent-site-check"] !== "./dist/site-check.mjs"
+        ) {
+            throw new Error("[PublicReleaseManifest] Site check runtime dependency or entry point drifted");
+        }
+    }
     return { directory, name: manifest.name, version: manifest.version };
 }
 
@@ -192,7 +215,8 @@ function assertExactPackageFiles(root) {
                 const host = match[1];
                 if (
                     /(?:^|\.)1consent\.(?:app|dev|local)$/.test(host) &&
-                    !REVIEWED_1CONSENT_PACKAGE_HOSTS.has(host)
+                    !REVIEWED_1CONSENT_PACKAGE_HOSTS.has(host) &&
+                    !(directory === SITE_CHECK_PACKAGE && SITE_CHECK_PUBLIC_ORIGINS.has(host))
                 ) {
                     throw new Error(
                         `[PublicReleaseManifest] Unreviewed 1Consent service hostname in ${directory}/${path}: ${host}`,
@@ -202,9 +226,10 @@ function assertExactPackageFiles(root) {
         }
     }
 
-    const cliPath = resolve(root, "packages/libs/cli/dist/cli.js");
-    if ((statSync(cliPath).mode & 0o111) === 0) {
-        throw new Error("[PublicReleaseManifest] CLI entry point must be executable");
+    for (const bin of ["packages/libs/cli/dist/cli.js", "packages/libs/site-check/dist/site-check.mjs"]) {
+        if ((statSync(resolve(root, bin)).mode & 0o111) === 0) {
+            throw new Error(`[PublicReleaseManifest] Entry point must be executable: ${bin}`);
+        }
     }
 }
 
@@ -222,8 +247,9 @@ export function createPublicReleaseManifest(root) {
     const packages = Object.keys(PUBLIC_PACKAGE_FILES).map((directory) =>
         packageMetadata(normalizedRoot, directory),
     );
-    if (new Set(packages.map(({ version }) => version)).size !== 1) {
-        throw new Error("[PublicReleaseManifest] All public package versions must match");
+    const sdkPackages = packages.filter(({ name }) => name !== "@1consent/site-check");
+    if (new Set(sdkPackages.map(({ version }) => version)).size !== 1) {
+        throw new Error("[PublicReleaseManifest] All SDK package versions must match");
     }
     const files = actualReleaseFiles.map((path) => fileRecord(normalizedRoot, path));
     return { schemaVersion: 1, packages, files };

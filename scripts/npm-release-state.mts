@@ -16,6 +16,11 @@ const RELEASE_PACKAGES = [
     ["nextjs", "@1consent/nextjs", "packages/libs/nextjs"],
     ["cli", "@1consent/cli", "packages/libs/cli"],
 ] as const;
+const SITE_CHECK_PACKAGE: readonly [string, string, string] = [
+    "site-check",
+    "@1consent/site-check",
+    "packages/libs/site-check",
+];
 const SHA512_INTEGRITY = /^sha512-[A-Za-z0-9+/]+={0,2}$/;
 
 export function interpretNpmViewResult(
@@ -232,7 +237,7 @@ function npmPackageIntegrity(packageSpec: string): string {
     );
 }
 
-function localPackageIntegrity(directory: string): string {
+function localPackageIntegrity(directory: string, packageName: string): string {
     const cacheDirectory = mkdtempSync(resolve(tmpdir(), "1consent-release-integrity-"));
     try {
         const result = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], {
@@ -254,8 +259,6 @@ function localPackageIntegrity(directory: string): string {
                 cause: error,
             });
         }
-        const packageName = RELEASE_PACKAGES.find((entry) => entry[2] === directory)?.[1];
-        if (!packageName) throw new Error(`[NpmRelease] Unreviewed package directory ${directory}`);
         return parseNpmPackReport(report, packageName).integrity;
     } finally {
         rmSync(cacheDirectory, { recursive: true, force: true });
@@ -277,14 +280,15 @@ export function main(argv: readonly string[] = process.argv.slice(2)): void {
     const version = releaseVersion(argv);
     const results: Array<readonly [string, NpmReleaseState]> = [];
 
-    for (const [outputName, packageName, directory] of RELEASE_PACKAGES) {
+    const packages = argv.includes("--site-check") ? [SITE_CHECK_PACKAGE] : RELEASE_PACKAGES;
+    for (const [outputName, packageName, directory] of packages) {
         const exactVersionExists = npmPackageExists(`${packageName}@${version}`);
         const packageExists = exactVersionExists || npmPackageExists(packageName);
         if (exactVersionExists) {
             const packageSpec = `${packageName}@${version}`;
             assertPublishedIntegrityMatches(
                 packageSpec,
-                localPackageIntegrity(directory),
+                localPackageIntegrity(directory, packageName),
                 npmPackageIntegrity(packageSpec),
             );
             assertPublishedBetaTagMatches(packageSpec, version, npmBetaTag(packageName));

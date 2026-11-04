@@ -83,14 +83,17 @@ function extensionValues(options: ExpectedProvenance): Map<string, string> {
     ]);
 }
 
-function auditReport(options: ExpectedProvenance = expected) {
+function auditReport(
+    options: ExpectedProvenance = expected,
+    packages = ["@1consent/react", "@1consent/nextjs", "@1consent/cli"],
+) {
     const repositoryUrl = `https://github.com/${options.repository}`;
     const invocation = `${repositoryUrl}/actions/runs/123/attempts/1`;
     const invalid: unknown[] = [];
     return {
         invalid,
         missing: [],
-        verified: ["@1consent/react", "@1consent/nextjs", "@1consent/cli"].map((name) => {
+        verified: packages.map((name) => {
             const slash = name.indexOf("/");
             const purl = `pkg:npm/${encodeURIComponent(name.slice(0, slash))}/${encodeURIComponent(name.slice(slash + 1))}@${options.version}`;
             const statement = {
@@ -157,6 +160,21 @@ function auditReport(options: ExpectedProvenance = expected) {
 
 test("accepts only npm-verified bundles bound to the selected tagged release", () => {
     assert.doesNotThrow(() => assertVerifiedReleaseProvenance(auditReport(), expected));
+});
+
+test("verifies the standalone package only against its own immutable release tag", () => {
+    const siteCheck = {
+        ...expected,
+        siteCheck: true,
+        ref: "refs/tags/npm-vsite-check-0.1.0-beta.0",
+    };
+    const report = auditReport(siteCheck, ["@1consent/site-check"]);
+    assert.doesNotThrow(() => assertVerifiedReleaseProvenance(report, siteCheck));
+    assert.throws(() => assertVerifiedReleaseProvenance(report, expected), /verified list/);
+    assert.throws(
+        () => assertVerifiedReleaseProvenance(report, { ...siteCheck, ref: expected.ref }),
+        /immutable npm tag/,
+    );
 });
 
 test("extracts Fulcio's DER-encoded identity extensions", () => {
