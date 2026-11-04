@@ -1,0 +1,32 @@
+{
+    "name": "@1consent/site-check",
+    "version": "0.1.0-beta.1",
+    "description": "Run the 1Consent site check in local Chrome.",
+    "type": "module",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/oneconsent/1consent-js.git"
+    },
+    "engines": {
+        "node": ">=24.15.0"
+    },
+    "publishConfig": {
+        "access": "public",
+        "provenance": true,
+        "registry": "https://registry.npmjs.org/",
+        "tag": "beta"
+    },
+    "files": [
+        "dist/site-check.mjs",
+        "skills/oneconsent-site-check",
+        "README.md",
+        "LICENSE"
+    ],
+    "bin": {
+        "oneconsent-site-check": "./dist/site-check.mjs"
+    },
+    "dependencies": {
+        "patchright": "1.64.3"
+    }
+}

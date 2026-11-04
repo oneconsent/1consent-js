@@ -2,6 +2,11 @@
   "schemaVersion": 1,
   "packages": [
     {
+      "directory": "packages/libs/site-check",
+      "name": "@1consent/site-check",
+      "version": "0.1.0-beta.1"
+    },
+    {
       "directory": "packages/libs/react",
       "name": "@1consent/react",
       "version": "0.1.0-beta.3"
@@ -25,8 +30,8 @@
     },
     {
       "path": ".github/workflows/publish-npm.yml",
-      "bytes": 13493,
-      "sha256": "ff5dbc0a6bbede029cfc15c6170efab948702acc2fac3831d7374ad839cb20ca"
+      "bytes": 17041,
+      "sha256": "0d08f562b5e2d2b198eb9f9843f847e46ceec3cc1a8094e5167b476961ef0ccd"
     },
     {
       "path": ".github/workflows/quality.yml",
@@ -55,8 +60,8 @@
     },
     {
       "path": "RELEASING.md",
-      "bytes": 4728,
-      "sha256": "88b8a509277f81e636850608424618d5942078882e611dae5e86fb333afef37e"
+      "bytes": 4895,
+      "sha256": "0d7fed178b25ace350ee380c5ce928ec0285d144358b3a3ca879c04550c6139c"
     },
     {
       "path": "SECURITY.md",
@@ -229,6 +234,41 @@
       "sha256": "5d7714c2efbe8702671242ef11742703473f160ae042e49baf272650aeaa3ad5"
     },
     {
+      "path": "packages/libs/site-check/LICENSE",
+      "bytes": 1065,
+      "sha256": "54b026ed7c04d6dd321eb02bb85310b6ef4cea6a73d876ce2f98c30ccd59bbe7"
+    },
+    {
+      "path": "packages/libs/site-check/README.md",
+      "bytes": 2993,
+      "sha256": "a3822b16fed673f7d33537d70b30e394e89ba0a43b801d009be5ba473e8c0ef8"
+    },
+    {
+      "path": "packages/libs/site-check/dist/site-check.mjs",
+      "bytes": 503723,
+      "sha256": "d26845723132490a50ac268d47c8c93fec1cdbca3593f8b5e23f8dfd418416af"
+    },
+    {
+      "path": "packages/libs/site-check/package.json",
+      "bytes": 778,
+      "sha256": "02662be49b54bb0d7bdb7c183f907a303ffc25ab419e7f688580babe86b0585a"
+    },
+    {
+      "path": "packages/libs/site-check/skills/oneconsent-site-check/SKILL.md",
+      "bytes": 1828,
+      "sha256": "239c5436feeae13d3d277d62fc5804d772aaed52a6217d971376e08a3fd114ea"
+    },
+    {
+      "path": "packages/libs/site-check/skills/oneconsent-site-check/references/generic-prompt.md",
+      "bytes": 791,
+      "sha256": "17cece1f03f32b275e3c05810b36c070e352ed7340d3f9fb7f991d72427f82f7"
+    },
+    {
+      "path": "packages/libs/site-check/skills/oneconsent-site-check/references/mcp.md",
+      "bytes": 1745,
+      "sha256": "bae54ffe489fdb18e39d4c54b0fecf35a7d231b0ae6d6aedabc3111d5b1b4452"
+    },
+    {
       "path": "scripts/check-secrets.mjs",
       "bytes": 5271,
       "sha256": "fb5757a84ac9134a0d492454ba68dd9d59022014ed8392eacb59ff262376feca"
@@ -255,38 +295,38 @@
     },
     {
       "path": "scripts/npm-release-state.mts",
-      "bytes": 11262,
-      "sha256": "ed947e9fd00c92f770d242dfda42d5c4cdc1787a0c3c6a9aefea8e45d934ab33"
+      "bytes": 11335,
+      "sha256": "0e61ee0505d5c0f653f8ea5be9accbc85ad03ddf5136f15efd2e36c31ce677b3"
     },
     {
       "path": "scripts/npm-release-state.test.mts",
-      "bytes": 19993,
-      "sha256": "542997e289efdffe699e5d9a6a6bb11fdc3a974d3453f4983bf49605e11e7e46"
+      "bytes": 22459,
+      "sha256": "02861206bef025a3f5572ad699feac6f58d788bd3f84cefdd20f3dff2f08f464"
     },
     {
       "path": "scripts/public-release-manifest.mjs",
-      "bytes": 9896,
-      "sha256": "68427e561a0dd22fad75a92586ec5c15882d25e37d46221ec9aff11a68cd9df2"
+      "bytes": 11082,
+      "sha256": "a8f0eca4bdfe23fd5b62b2235e4fa80a5da8095e0b06846b3ddd7d1a366a8b8c"
     },
     {
       "path": "scripts/public-release-manifest.test.mjs",
-      "bytes": 4615,
-      "sha256": "3c84ff829f166c7464e6ec749e5c385a2dfaa814f529a9197aa33353c0d42362"
+      "bytes": 5884,
+      "sha256": "09ea1b16561400e9edccdf355ced74419afde5dbafd25bf3cc4f95349abc44ca"
     },
     {
       "path": "scripts/smoke-public-packages.mjs",
-      "bytes": 8225,
-      "sha256": "186f08e8da3ad865a78dbf1ac15fc3c4779087aaf9bea7adfb45b7b1c766c8c0"
+      "bytes": 8957,
+      "sha256": "bd0998454b0386a71461a1df0b0c0b4c525c3ad1b1e0958fbe29c3c142b015e3"
     },
     {
       "path": "scripts/verify-npm-provenance.mts",
-      "bytes": 21003,
-      "sha256": "5fdd86aecd9d87321311ef9c78549fe59fc73b875a9a93873a4dd5281adce12c"
+      "bytes": 21250,
+      "sha256": "e5edbc574af498a7ba247dac39e0ed96c89e40270be91ad6be5daa9c1a235ff0"
     },
     {
       "path": "scripts/verify-npm-provenance.test.mts",
-      "bytes": 11126,
-      "sha256": "c1d55c39c1865e32f6b69e7535f559b161d9d1c79565fb41dcc3bae14c2c8838"
+      "bytes": 11778,
+      "sha256": "f858e01a10bd74b7a30fe8ffe5b79aa5aa30b76a7687715323b69bdb2e8e0f06"
     }
   ]
 }

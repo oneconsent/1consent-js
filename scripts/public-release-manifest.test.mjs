@@ -35,6 +35,10 @@ function packageManifest(name, directory) {
         manifest.dependencies = { "@1consent/react": "0.1.0-beta.0" };
         manifest.peerDependencies = { next: ">=16.0.0 <17.0.0" };
     }
+    if (name === "@1consent/site-check") {
+        manifest.dependencies = { patchright: "1.64.3" };
+        manifest.bin = { "oneconsent-site-check": "./dist/site-check.mjs" };
+    }
     return manifest;
 }
 
@@ -59,6 +63,7 @@ function fixture() {
         }
     }
     chmodSync(resolve(root, "packages/libs/cli/dist/cli.js"), 0o755);
+    chmodSync(resolve(root, "packages/libs/site-check/dist/site-check.mjs"), 0o755);
     writePublicReleaseManifest(root);
     return root;
 }
@@ -113,4 +118,23 @@ test("rejects an unreviewed internal service hostname", () => {
         'const url = "https://internal.1consent.app";\n',
     );
     assert.throws(() => writePublicReleaseManifest(root), /Unreviewed 1Consent service hostname/);
+});
+
+test("allows the site check beta to advance independently of the SDK packages", () => {
+    const root = fixture();
+    const directory = "packages/libs/site-check";
+    const manifest = packageManifest("@1consent/site-check", directory);
+    manifest.version = "0.2.0-beta.1";
+    writeFileSync(resolve(root, directory, "package.json"), JSON.stringify(manifest));
+    const release = writePublicReleaseManifest(root);
+    assert.equal(release.packages.find(({ name }) => name === manifest.name).version, manifest.version);
+});
+
+test("rejects a private dependency in the site check distribution", () => {
+    const root = fixture();
+    const directory = "packages/libs/site-check";
+    const manifest = packageManifest("@1consent/site-check", directory);
+    manifest.dependencies["@1consent/contracts"] = "0.1.0";
+    writeFileSync(resolve(root, directory, "package.json"), JSON.stringify(manifest));
+    assert.throws(() => writePublicReleaseManifest(root), /Site check runtime dependency/);
 });

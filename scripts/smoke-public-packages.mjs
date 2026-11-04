@@ -18,6 +18,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const reactDir = resolve(repoRoot, "packages/libs/react");
 const nextjsDir = resolve(repoRoot, "packages/libs/nextjs");
 const cliDir = resolve(repoRoot, "packages/libs/cli");
+const siteCheckDir = resolve(repoRoot, "packages/libs/site-check");
 const consumerDir = mkdtempSync(resolve(tmpdir(), "1consent-package-smoke-"));
 const cacheDir = resolve(consumerDir, "npm-cache");
 const privateContractsManifest = resolve(repoRoot, "packages/contracts/package.json");
@@ -97,6 +98,7 @@ try {
     const reactTarball = pack(reactDir);
     const nextjsTarball = pack(nextjsDir);
     const cliTarball = pack(cliDir);
+    const siteCheckTarball = pack(siteCheckDir);
 
     writeFileSync(
         resolve(consumerDir, "package.json"),
@@ -113,6 +115,7 @@ try {
             reactTarball,
             nextjsTarball,
             cliTarball,
+            siteCheckTarball,
             ...peerInstallSpecifiers(),
         ],
         consumerDir,
@@ -130,6 +133,20 @@ try {
     if (!typegenHelp.includes("--app <shortId>")) {
         throw new Error("Installed CLI did not expose the documented typegen command");
     }
+
+    const siteCheckVersion = run(
+        resolve(consumerDir, "node_modules/.bin/oneconsent-site-check"),
+        ["--version"],
+        consumerDir,
+    );
+    if (!/^Site check specification \d+\.\d+\.\d+\s*$/.test(siteCheckVersion)) {
+        throw new Error("Installed site check did not expose the versioned check specification");
+    }
+    const skillPath = resolve(
+        consumerDir,
+        "node_modules/@1consent/site-check/skills/oneconsent-site-check/SKILL.md",
+    );
+    if (!existsSync(skillPath)) throw new Error("Installed site check did not include its skill");
 
     const smokeFile = resolve(consumerDir, "smoke.mjs");
     writeFileSync(

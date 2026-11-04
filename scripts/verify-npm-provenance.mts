@@ -37,6 +37,7 @@ type JsonRecord = Record<string, unknown>;
 
 export interface ExpectedProvenance {
     version: string;
+    siteCheck?: boolean;
     repository: string;
     workflow: string;
     ref: string;
@@ -373,7 +374,8 @@ export function assertVerifiedReleaseProvenance(
 ): void {
     if (!/^0\.\d+\.\d+-beta\.\d+$/.test(expected.version)) fail("version must be a 0.x beta");
     if (!/^[a-f0-9]{40}$/.test(expected.commit)) fail("commit must be a full lowercase SHA-1");
-    if (expected.ref !== `refs/tags/npm-v${expected.version}`) {
+    const prefix = expected.siteCheck ? "npm-vsite-check-" : "npm-v";
+    if (expected.ref !== `refs/tags/${prefix}${expected.version}`) {
         fail("ref must be the immutable npm tag for the selected version");
     }
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(expected.repository)) {
@@ -393,7 +395,7 @@ export function assertVerifiedReleaseProvenance(
     }
     const verified = array(auditReport.verified, "npm audit verified list");
 
-    for (const packageName of RELEASE_PACKAGES) {
+    for (const packageName of expected.siteCheck ? ["@1consent/site-check"] : RELEASE_PACKAGES) {
         const matches = verified.filter((entry) => {
             if (!isRecord(entry)) return false;
             return entry.name === packageName && entry.version === expected.version;
@@ -438,6 +440,7 @@ export function main(argv: readonly string[] = process.argv.slice(2)): void {
     }
     const expected: ExpectedProvenance = {
         version: argument(argv, "--version"),
+        siteCheck: argv.includes("--site-check"),
         repository: argument(argv, "--repository"),
         workflow: argument(argv, "--workflow"),
         ref: argument(argv, "--ref"),
@@ -446,7 +449,7 @@ export function main(argv: readonly string[] = process.argv.slice(2)): void {
     };
     assertVerifiedReleaseProvenance(auditReport, expected);
     process.stdout.write(
-        `[NpmProvenance] Verified npm signatures and exact GitHub release identity for ${RELEASE_PACKAGES.map((name) => `${name}@${expected.version}`).join(" and ")}.\n`,
+        `[NpmProvenance] Verified npm signatures and exact GitHub release identity for ${(expected.siteCheck ? ["@1consent/site-check"] : RELEASE_PACKAGES).map((name) => `${name}@${expected.version}`).join(" and ")}.\n`,
     );
 }
 
