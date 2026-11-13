@@ -3,8 +3,9 @@
 Release maintainers should follow the [release guide](RELEASING.md).
 
 Open an issue before substantial changes so package compatibility and the public-release boundary
-can be agreed first. Pull requests must keep the React, Next.js, and CLI packages on the beta
-channel and pass:
+can be agreed first. Pull requests must keep the React, Next.js, and CLI packages at one shared version, with
+`publishConfig.tag` matching that version's channel (`latest` for a release, `beta` for a
+prerelease), and pass:
 
 ```sh
 npm test

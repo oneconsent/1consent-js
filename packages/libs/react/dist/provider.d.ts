@@ -40,4 +40,20 @@ export interface OneConsentProviderProps {
     loadCmp?: boolean;
     children?: ReactNode;
 }
-export declare function OneConsentProvider({ appId, fastPathVersions, nonce, cmpSrc, environment, loadCmp, children, }: OneConsentProviderProps): import("react").JSX.Element;
+export interface ProviderSources {
+    /** Resolved app id ("" when unresolved: the fast path stays cold). */
+    appId: string;
+    /** CMP embed URL, or undefined when `loadCmp` is false. */
+    cmpSrc: string | undefined;
+    /** JSON of the framework-associated build stamps. */
+    frameworkVersions: string;
+}
+/** Resolve what the provider loads; throws when the CMP embed has no app id. */
+export declare function resolveProviderSources({ appId, fastPathVersions, cmpSrc, environment, loadCmp, }: OneConsentProviderProps): ProviderSources;
+/**
+ * Server-rendered provider markup. The browser runs these scripts only when
+ * they arrive in the HTML; React never executes a `<script>` it renders on the
+ * client, so the client entry (`client-provider.tsx`) inserts them itself on a
+ * client-only mount.
+ */
+export declare function OneConsentProvider(props: OneConsentProviderProps): import("react").JSX.Element;

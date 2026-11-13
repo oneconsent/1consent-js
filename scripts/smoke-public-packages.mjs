@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
     copyFileSync,
     existsSync,
@@ -25,16 +25,17 @@ const privateContractsManifest = resolve(repoRoot, "packages/contracts/package.j
 
 function peerInstallSpecifiers() {
     if (!existsSync(privateContractsManifest)) {
-        return ["next@^16.0.0", "react@^19.0.0", "react-dom@^19.0.0", "zod@^4.0.0"];
+        return ["next@^16.0.0", "react@^19.0.0", "react-dom@^19.0.0"];
     }
     const reactRequire = createRequire(resolve(reactDir, "package.json"));
     const nextjsRequire = createRequire(resolve(nextjsDir, "package.json"));
-    const contractsRequire = createRequire(privateContractsManifest);
+    const siteCheckRequire = createRequire(resolve(siteCheckDir, "package.json"));
     return [
         dirname(nextjsRequire.resolve("next/package.json")),
         dirname(reactRequire.resolve("react/package.json")),
         dirname(nextjsRequire.resolve("react-dom/package.json")),
-        dirname(contractsRequire.resolve("zod/package.json")),
+        // The private workspace already holds the exact pinned browser driver.
+        dirname(siteCheckRequire.resolve("patchright/package.json")),
     ];
 }
 
@@ -48,7 +49,7 @@ function run(command, args, cwd = repoRoot) {
 }
 
 const publicPackageVersions = new Map(
-    [reactDir, nextjsDir, cliDir].map((directory) => {
+    [reactDir, nextjsDir, cliDir, siteCheckDir].map((directory) => {
         const manifest = JSON.parse(readFileSync(resolve(directory, "package.json"), "utf8"));
         return [manifest.name, manifest.version];
     }),
@@ -125,6 +126,30 @@ try {
     if (!help.includes("typegen") || !help.includes("Manage 1Consent")) {
         throw new Error("Installed CLI did not expose the documented command surface");
     }
+    const listedCommands = [...help.matchAll(/^ {2}([a-z-]+)(?: \[|\s{2,})/gm)].map(
+        (match) => match[1],
+    );
+    const customerCommands = ["init", "pull", "push", "status", "typegen", "help"];
+    if (listedCommands.join(" ") !== customerCommands.join(" ")) {
+        throw new Error(
+            `Installed CLI help must list only customer commands; listed: ${listedCommands.join(", ")}`,
+        );
+    }
+    // The official system publisher is repository-only and `mcp`/`validate`
+    // ship in 0.2.0: the installed CLI has none of these commands.
+    for (const systemCommand of ["push-system", "publish", "mcp", "validate"]) {
+        const attempt = spawnSync(
+            resolve(consumerDir, "node_modules/.bin/1c"),
+            [systemCommand],
+            { cwd: consumerDir, encoding: "utf8", env: { ...process.env, NPM_CONFIG_CACHE: cacheDir } },
+        );
+        if (attempt.error) throw attempt.error;
+        if (attempt.status === 0 || !attempt.stderr.includes("unknown command")) {
+            throw new Error(
+                `Installed CLI still accepts the command ${systemCommand}: ${attempt.stderr || attempt.stdout}`,
+            );
+        }
+    }
     const typegenHelp = run(
         resolve(consumerDir, "node_modules/.bin/1c"),
         ["typegen", "--help"],
@@ -139,14 +164,9 @@ try {
         ["--version"],
         consumerDir,
     );
-    if (!/^Site check specification \d+\.\d+\.\d+\s*$/.test(siteCheckVersion)) {
-        throw new Error("Installed site check did not expose the versioned check specification");
+    if (!/^Site check specification \S+\n$/.test(siteCheckVersion)) {
+        throw new Error("Installed site check did not report its specification version");
     }
-    const skillPath = resolve(
-        consumerDir,
-        "node_modules/@1consent/site-check/skills/oneconsent-site-check/SKILL.md",
-    );
-    if (!existsSync(skillPath)) throw new Error("Installed site check did not include its skill");
 
     const smokeFile = resolve(consumerDir, "smoke.mjs");
     writeFileSync(
@@ -184,8 +204,24 @@ try {
     const installedNextjs = JSON.parse(
         readFileSync(resolve(consumerDir, "node_modules/@1consent/nextjs/package.json"), "utf8"),
     );
+    const installedSiteCheck = JSON.parse(
+        readFileSync(
+            resolve(consumerDir, "node_modules/@1consent/site-check/package.json"),
+            "utf8",
+        ),
+    );
+    const siteCheckDependencies = Object.entries(installedSiteCheck.dependencies ?? {});
+    if (
+        siteCheckDependencies.length !== 1 ||
+        siteCheckDependencies[0][0] !== "patchright" ||
+        siteCheckDependencies[0][1] !== "1.64.3" ||
+        installedSiteCheck.peerDependencies !== undefined
+    ) {
+        throw new Error("Installed site check must contain only its reviewed Patchright runtime dependency");
+    }
+    // Koffi serves only the MCP adapter, which ships in 0.2.0 (1CO-1376).
     if (installedCli.dependencies !== undefined) {
-        throw new Error("Installed package retains runtime workspace dependencies");
+        throw new Error("Installed CLI 0.1.0 must have no runtime dependencies");
     }
     if (
         installedCli.peerDependencies?.vite !== ">=8.0.0 <9.0.0" ||
@@ -193,12 +229,8 @@ try {
     ) {
         throw new Error("Installed CLI does not declare its optional Vite 8 host boundary");
     }
-    const sdkDependencies = Object.entries(installedSdk.dependencies ?? {});
-    if (
-        sdkDependencies.length !== 1 ||
-        sdkDependencies[0]?.[0] !== "zod" ||
-        String(sdkDependencies[0]?.[1]).startsWith("workspace:")
-    ) {
+    // Every 1Consent implementation package is bundled; React is the only peer.
+    if (installedSdk.dependencies !== undefined) {
         throw new Error("Installed React package dependency boundary drifted");
     }
     if (

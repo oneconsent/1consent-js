@@ -7,16 +7,12 @@ validated consent-cookie hints.
 
 ## Distribution status
 
-The first supported release line is `0.1.0-beta.*` on npm's `beta` dist-tag.
-The protected public-repository workflow stages each release with provenance
-for a maintainer's npm 2FA approval. The first release uses a short-lived
-stage-only token; later releases use trusted publishing. Before a release is
-approved and verified against the registry, test the reviewed local tarballs.
-
-After verification, beta consumers install an explicit prerelease channel:
+Stable releases are published on npm's `latest` dist-tag; prereleases use the
+`beta` dist-tag. The protected public-repository workflow stages each release
+with provenance for a maintainer's npm 2FA approval, using trusted publishing.
 
 ```sh
-npm install @1consent/nextjs@beta
+npm install @1consent/nextjs
 ```
 
 ## App Router
@@ -24,18 +20,25 @@ npm install @1consent/nextjs@beta
 Server Components can render the provider and consent gates directly:
 
 ```tsx
-import { OneConsent, OneConsentProvider } from "@1consent/nextjs";
+import { OneConsentProvider } from "@1consent/nextjs";
+// Written by `npx @1consent/cli typegen --app YOUR_APP_ID`.
+import { fastPathVersions } from "@/1consent.gen";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
         <html lang="en">
             <body>
-                <OneConsentProvider appId="YOUR_APP_ID">{children}</OneConsentProvider>
+                <OneConsentProvider appId="YOUR_APP_ID" fastPathVersions={fastPathVersions}>
+                    {children}
+                </OneConsentProvider>
             </body>
         </html>
     );
 }
 ```
+
+Wrap third-party markup in `OneConsent` (also importable in Server Components)
+to keep it inert until the named service or category has consent.
 
 `useConsent` is a client hook and must be imported from a Client Component:
 
@@ -69,12 +72,23 @@ the inline engine's observer after mounting; they have no initial-paint promise.
 
 ## Server helpers
 
-The explicit server entrypoint validates the complete cookie scope and legal
-expiry before returning a decision:
+The explicit server entrypoint reads the `1consent` cookie only when it matches
+the complete scope you pass and its legal expiry has not passed:
 
 ```ts
-import { COOKIE_NAME, readConsentCookie } from "@1consent/nextjs/server";
+import { COOKIE_NAME, parseConsentCookie, readConsentCookie } from "@1consent/nextjs/server";
+
+// "A" (all accepted), "D" (all denied), "G" (granular) or "none".
+const decision = parseConsentCookie(cookieValue, expected);
+// The full validated cookie, or null.
+const cookie = readConsentCookie(cookieValue, expected);
 ```
+
+`expected` is a `ConsentCookieExpectation`: `appId`, `frameworkId`,
+`frameworkType`, `machine`, `primaryLanguage`, `structuralVersion` and
+`consentEpoch` of the configuration the request is served with. A cookie from
+another app, framework, language, structural version or consent epoch, or one
+past its expiry, reads as `"none"` / `null`.
 
 Reading `cookies()` inside a Server Component makes the route dynamic. For
 static pages, use the helper from a Proxy or Route Handler and pass the cookie
@@ -92,5 +106,5 @@ npm pack ./packages/libs/nextjs --pack-destination /path/to/tarballs
 ```
 
 Install both tarballs together in a Next.js 16 test project with React and
-React DOM 19+. This repository contains distribution artifacts rather than
+React DOM 19. This repository contains distribution artifacts rather than
 the private source build.

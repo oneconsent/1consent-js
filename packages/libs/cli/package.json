@@ -1,6 +1,6 @@
 {
     "name": "@1consent/cli",
-    "version": "0.1.0-beta.3",
+    "version": "0.1.0",
     "description": "The official 1Consent CLI for design sync, publishing, and generated React consent types.",
     "type": "module",
     "license": "MIT",
@@ -21,13 +21,13 @@
         "url": "https://github.com/oneconsent/1consent-js/issues"
     },
     "engines": {
-        "node": ">=22.0.0"
+        "node": ">=22.12.0"
     },
     "publishConfig": {
         "access": "public",
         "provenance": true,
         "registry": "https://registry.npmjs.org/",
-        "tag": "beta"
+        "tag": "latest"
     },
     "files": [
         "dist/cli.js",

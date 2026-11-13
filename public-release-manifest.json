@@ -2,24 +2,24 @@
   "schemaVersion": 1,
   "packages": [
     {
-      "directory": "packages/libs/site-check",
-      "name": "@1consent/site-check",
-      "version": "0.1.0-beta.1"
-    },
-    {
       "directory": "packages/libs/react",
       "name": "@1consent/react",
-      "version": "0.1.0-beta.3"
+      "version": "0.1.0"
     },
     {
       "directory": "packages/libs/nextjs",
       "name": "@1consent/nextjs",
-      "version": "0.1.0-beta.3"
+      "version": "0.1.0"
     },
     {
       "directory": "packages/libs/cli",
       "name": "@1consent/cli",
-      "version": "0.1.0-beta.3"
+      "version": "0.1.0"
+    },
+    {
+      "directory": "packages/libs/site-check",
+      "name": "@1consent/site-check",
+      "version": "0.1.0-beta.1"
     }
   ],
   "files": [
@@ -30,8 +30,8 @@
     },
     {
       "path": ".github/workflows/publish-npm.yml",
-      "bytes": 17041,
-      "sha256": "0d08f562b5e2d2b198eb9f9843f847e46ceec3cc1a8094e5167b476961ef0ccd"
+      "bytes": 16191,
+      "sha256": "5599d016edfe45efcd4752475a3d9879b1b411a9b207685fb85b8f38e4e615b8"
     },
     {
       "path": ".github/workflows/quality.yml",
@@ -44,9 +44,14 @@
       "sha256": "50106aa41deed29cb69a51f3213bfc5272a84e8f33e590f5a00ce025ea27b93b"
     },
     {
+      "path": "CHANGELOG.md",
+      "bytes": 2834,
+      "sha256": "835688b4aa5ee03a82bfc8d146c358f712b967ea2ba6bd3343ef80cb87871607"
+    },
+    {
       "path": "CONTRIBUTING.md",
-      "bytes": 619,
-      "sha256": "264965ecaefc7f86def2c90a858b2636bece7c87d294731b562e30083b332515"
+      "bytes": 730,
+      "sha256": "754984facdd94496abe0d8753544f52e3f5929ea1c56f641d9f5defbb1e49415"
     },
     {
       "path": "LICENSE",
@@ -55,18 +60,18 @@
     },
     {
       "path": "README.md",
-      "bytes": 3564,
-      "sha256": "ffcdcbbd4697242ab131156177193498c63e61be02f32022e43e9fc75210f000"
+      "bytes": 3842,
+      "sha256": "602db159281bc31f183b9223ddc88663aa657cb099164315b1d4470ac5d63e12"
     },
     {
       "path": "RELEASING.md",
-      "bytes": 4895,
-      "sha256": "0d7fed178b25ace350ee380c5ce928ec0285d144358b3a3ca879c04550c6139c"
+      "bytes": 6333,
+      "sha256": "b308a3ea801dd9049cc2226f6887a182719c7c83355e2409eea2f38d81fee218"
     },
     {
       "path": "SECURITY.md",
-      "bytes": 448,
-      "sha256": "6d12ee9b4a70239de7adb62afe8b7b9422b8364440afed9b04d34ff7dc1aef8f"
+      "bytes": 473,
+      "sha256": "e9189ff6b0323fe8992262d21effc3393679160f5e4d5ab2fa45ebe00499c35a"
     },
     {
       "path": "package.json",
@@ -80,13 +85,13 @@
     },
     {
       "path": "packages/libs/cli/README.md",
-      "bytes": 1712,
-      "sha256": "71f318e27153705245dd0530581950bf5063d97695209f10ed192518d286f6dd"
+      "bytes": 1787,
+      "sha256": "202a35e42fbf5d45641180f9e19bf841ad132651f4a19287708d9cf41cf5ee00"
     },
     {
       "path": "packages/libs/cli/dist/cli.js",
-      "bytes": 867354,
-      "sha256": "632382514ef56b63a7842997828838bd2add4c98579c357eda67c1900092d000"
+      "bytes": 830826,
+      "sha256": "53655e742cfa954a6bdde8a011861b411239aacb23788655ffcc73da3f05fbd7"
     },
     {
       "path": "packages/libs/cli/dist/design-kit/index.d.ts",
@@ -95,23 +100,23 @@
     },
     {
       "path": "packages/libs/cli/dist/design-kit/index.js",
-      "bytes": 767972,
-      "sha256": "3e2b0f53142561563a870557818023bd529267a38a8b2c9d72ebb9cfecf27cb8"
+      "bytes": 1002471,
+      "sha256": "9e00e991af194926ea82a33d98486c4cec12b23512d07a69c38b897357f6d784"
     },
     {
       "path": "packages/libs/cli/dist/design-kit/runtime.js",
-      "bytes": 150968,
-      "sha256": "36a5c4127ee204d9303b8b207b10e5ec9b09cc784d5290b84872b2d1d877a334"
+      "bytes": 156713,
+      "sha256": "86911e1e30757e0576496436c79186999e95e294374850b8c0cb6f016e7fdd4d"
     },
     {
       "path": "packages/libs/cli/dist/design-kit/ui/assets/index.css",
-      "bytes": 69995,
-      "sha256": "936cb0520b4e1008d7fca4145abbe0487f7eb8e4a3529661aacff9767a88f4ca"
+      "bytes": 97609,
+      "sha256": "bddbf0339c67e88f156e0e1e38872bc6297f4d013138c7f86fd9aab2c2e74d57"
     },
     {
       "path": "packages/libs/cli/dist/design-kit/ui/assets/index.js",
-      "bytes": 401957,
-      "sha256": "0fcb308afface953a2b626f7bd3adb3d1acca481a1a88743ee9e190078eed5b2"
+      "bytes": 439661,
+      "sha256": "06f58d3f07d84cc203f189103123c89d39f62f67b4021a6d6c2442a68499a9dd"
     },
     {
       "path": "packages/libs/cli/dist/design-kit/ui/index.html",
@@ -120,8 +125,8 @@
     },
     {
       "path": "packages/libs/cli/package.json",
-      "bytes": 1589,
-      "sha256": "435657cf19fd0ed802ef463b83da1000f8f739d9e1ab2996c842f190dff412fd"
+      "bytes": 1585,
+      "sha256": "d72cc9d4efc08ac697c191619fe7f6b85838e07f510f46996f8705c2f715529c"
     },
     {
       "path": "packages/libs/nextjs/LICENSE",
@@ -130,8 +135,8 @@
     },
     {
       "path": "packages/libs/nextjs/README.md",
-      "bytes": 3560,
-      "sha256": "20712147375366ab3b4d2abe5fb896c3552c1687a0fb7d208f2a7d7cf681802e"
+      "bytes": 4267,
+      "sha256": "0c342879f0d24abe446250075ee847db18c482e390faeeda5fe3b4b465012f05"
     },
     {
       "path": "packages/libs/nextjs/dist/cookie.d.ts",
@@ -175,8 +180,8 @@
     },
     {
       "path": "packages/libs/nextjs/package.json",
-      "bytes": 1729,
-      "sha256": "f25a898a840d681981773505046cdb9b2ef3cd26351cd30a0a0d9e90ccac04a5"
+      "bytes": 1733,
+      "sha256": "355274baa557711ce94411eb805f2b23638adc50e371282f11dd432e26e97f91"
     },
     {
       "path": "packages/libs/react/LICENSE",
@@ -185,18 +190,23 @@
     },
     {
       "path": "packages/libs/react/README.md",
-      "bytes": 2872,
-      "sha256": "8fe79cdaffc0f728d3d5d8797e3bbb24b93f268a5af20b91a0887b7eceda14f4"
+      "bytes": 3015,
+      "sha256": "41e0b3105a5fe13b01a33d36c1f9a6746c6241827602772d0be01bd1c3f02cde"
+    },
+    {
+      "path": "packages/libs/react/dist/client-provider.d.ts",
+      "bytes": 571,
+      "sha256": "cfb37d1ff5ed796800198fcc7e211d7e9f65a18d2a160ac9f248dd1dcd13bb5d"
     },
     {
       "path": "packages/libs/react/dist/index.d.ts",
-      "bytes": 659,
-      "sha256": "0427582260bfa6234125981f584b52bbe176884a1faf7f295e3b8ed391c80ca6"
+      "bytes": 666,
+      "sha256": "1bace820c101c6d3ae1f96ac2a4a77860038b060b39409e93cbde6b21caadcf7"
     },
     {
       "path": "packages/libs/react/dist/index.js",
-      "bytes": 29487,
-      "sha256": "433231526ec2d9b88264e1c2c3fe05d62e13eca2d47a1d992adaf9e0f8c24931"
+      "bytes": 33050,
+      "sha256": "953bdee0e9ec54937f5e223ca6e7f83f69440a6824370c5251898db56611c868"
     },
     {
       "path": "packages/libs/react/dist/one-consent.d.ts",
@@ -205,8 +215,8 @@
     },
     {
       "path": "packages/libs/react/dist/provider.d.ts",
-      "bytes": 1905,
-      "sha256": "6ca894d397f74640824fbcf12976a2c94b14f44fb90119eae4f90affb9a07c07"
+      "bytes": 2649,
+      "sha256": "78f05353ae9978004edd9a60eddea468f190dfbde69112bba560327d176b094e"
     },
     {
       "path": "packages/libs/react/dist/react-server.d.ts",
@@ -215,8 +225,8 @@
     },
     {
       "path": "packages/libs/react/dist/react-server.js",
-      "bytes": 18964,
-      "sha256": "9ab379d6b1bcd995a81cc08f4ac1e135cbf38a95378ae1d03930204283b1b2b4"
+      "bytes": 19458,
+      "sha256": "ecd71b95969154bd76c952fab8ed50109802e7f822921fa9ae6170c9f6e4263f"
     },
     {
       "path": "packages/libs/react/dist/types.d.ts",
@@ -230,8 +240,8 @@
     },
     {
       "path": "packages/libs/react/package.json",
-      "bytes": 1504,
-      "sha256": "5d7714c2efbe8702671242ef11742703473f160ae042e49baf272650aeaa3ad5"
+      "bytes": 1491,
+      "sha256": "9ed763f2788a6dd98d32ed3855a200985839f36c02557ad69317c588d4df8c0c"
     },
     {
       "path": "packages/libs/site-check/LICENSE",
@@ -245,8 +255,8 @@
     },
     {
       "path": "packages/libs/site-check/dist/site-check.mjs",
-      "bytes": 503723,
-      "sha256": "d26845723132490a50ac268d47c8c93fec1cdbca3593f8b5e23f8dfd418416af"
+      "bytes": 658470,
+      "sha256": "2257cc882365631451a567b6a13c8f5f625923ab0ac90cc1b40b9167c63e15ca"
     },
     {
       "path": "packages/libs/site-check/package.json",
@@ -294,39 +304,44 @@
       "sha256": "39fc0ce8f58a8ed0485c70cb43a2f41cc7635e693a81a3a4c085085905b414f0"
     },
     {
+      "path": "scripts/npm-release-lines.mjs",
+      "bytes": 4514,
+      "sha256": "0599917134e61834c21de3cc3ed1ec8a12a5d6d451a5a4749c56afbf18b934af"
+    },
+    {
       "path": "scripts/npm-release-state.mts",
-      "bytes": 11335,
-      "sha256": "0e61ee0505d5c0f653f8ea5be9accbc85ad03ddf5136f15efd2e36c31ce677b3"
+      "bytes": 14442,
+      "sha256": "2258e347a5a9603d1c5f1c0f68200f771f79b334c6f4786c98d48bb3cd7cce55"
     },
     {
       "path": "scripts/npm-release-state.test.mts",
-      "bytes": 22459,
-      "sha256": "02861206bef025a3f5572ad699feac6f58d788bd3f84cefdd20f3dff2f08f464"
+      "bytes": 28076,
+      "sha256": "74f3e497dc44efe2684badbddd902fa1c2b527f1fd79fde5299708d80c4c2295"
     },
     {
       "path": "scripts/public-release-manifest.mjs",
-      "bytes": 11082,
-      "sha256": "a8f0eca4bdfe23fd5b62b2235e4fa80a5da8095e0b06846b3ddd7d1a366a8b8c"
+      "bytes": 11980,
+      "sha256": "eedff90f9869c1038e01d1e01ab38f5d56c91501cfb4b5d3dca4193f8c9ac787"
     },
     {
       "path": "scripts/public-release-manifest.test.mjs",
-      "bytes": 5884,
-      "sha256": "09ea1b16561400e9edccdf355ced74419afde5dbafd25bf3cc4f95349abc44ca"
+      "bytes": 7987,
+      "sha256": "a33df08adbf3b3d2ad65dd6741e2d5ef23cdf1d534efbe2ac1d25b825e1b2e54"
     },
     {
       "path": "scripts/smoke-public-packages.mjs",
-      "bytes": 8957,
-      "sha256": "bd0998454b0386a71461a1df0b0c0b4c525c3ad1b1e0958fbe29c3c142b015e3"
+      "bytes": 10576,
+      "sha256": "c19b0d99cfd0d1d0117d339c1e37e43fe4a248e94d500efbfa4fc373c0ae4af7"
     },
     {
       "path": "scripts/verify-npm-provenance.mts",
-      "bytes": 21250,
-      "sha256": "e5edbc574af498a7ba247dac39e0ed96c89e40270be91ad6be5daa9c1a235ff0"
+      "bytes": 21476,
+      "sha256": "1d0b378720bea74ccfb0fabdca1f112c20dee81e76cdd4b96761ffcbad2a530a"
     },
     {
       "path": "scripts/verify-npm-provenance.test.mts",
-      "bytes": 11778,
-      "sha256": "f858e01a10bd74b7a30fe8ffe5b79aa5aa30b76a7687715323b69bdb2e8e0f06"
+      "bytes": 13471,
+      "sha256": "9260eb7d0c2c7f9f95bf2ee1e6145ccf9bab5f3296ccb5ed8a5f9aa75843532f"
     }
   ]
 }

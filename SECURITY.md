@@ -5,4 +5,4 @@ Please do not disclose suspected vulnerabilities in a public issue. Use GitHub's
 reproduction steps, and the security impact. Maintainers will acknowledge the report and coordinate
 remediation and disclosure through that private channel.
 
-Only supported beta versions carrying npm provenance from this repository are in scope.
+The latest stable release and the current beta, each carrying npm provenance from this repository, are in scope.

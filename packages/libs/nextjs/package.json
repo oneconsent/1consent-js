@@ -1,6 +1,6 @@
 {
     "name": "@1consent/nextjs",
-    "version": "0.1.0-beta.3",
+    "version": "0.1.0",
     "description": "Next.js 16 adapter and server helpers for the 1Consent React integration.",
     "type": "module",
     "sideEffects": false,
@@ -26,7 +26,7 @@
         "access": "public",
         "provenance": true,
         "registry": "https://registry.npmjs.org/",
-        "tag": "beta"
+        "tag": "latest"
     },
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -54,11 +54,11 @@
         }
     },
     "dependencies": {
-        "@1consent/react": "0.1.0-beta.3"
+        "@1consent/react": "0.1.0"
     },
     "peerDependencies": {
         "next": ">=16.0.0 <17.0.0",
-        "react": ">=19.0.0",
-        "react-dom": ">=19.0.0"
+        "react": ">=19.0.0 <20.0.0",
+        "react-dom": ">=19.0.0 <20.0.0"
     }
 }

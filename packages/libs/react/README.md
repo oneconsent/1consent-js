@@ -1,21 +1,22 @@
 # @1consent/react
 
-React 19+ integration for 1Consent. It renders the synchronous CMP embed,
+React 19 integration for 1Consent. It renders the synchronous CMP embed,
 keeps third-party markup inert until consent, and exposes reactive consent
 state without making server-rendered HTML visitor-specific.
 
+It works with server-rendered apps (Next.js, React Router or Remix, Astro)
+and client-rendered apps (for example a Vite SPA started with `createRoot`). In
+server-rendered HTML the CMP embed and the inline engine run while the page
+parses; in a client-rendered app the provider inserts them when it mounts.
+
 ## Distribution status
 
-The first supported release line is `0.1.0-beta.*` on npm's `beta` dist-tag.
-The protected public-repository workflow stages each release with provenance
-for a maintainer's npm 2FA approval. The first release uses a short-lived
-stage-only token; later releases use trusted publishing. Before a release is
-approved and verified against the registry, test the reviewed local tarball.
-
-After verification, beta consumers install an explicit prerelease channel:
+Stable releases are published on npm's `latest` dist-tag; prereleases use the
+`beta` dist-tag. The protected public-repository workflow stages each release
+with provenance for a maintainer's npm 2FA approval, using trusted publishing.
 
 ```sh
-npm install @1consent/react@beta
+npm install @1consent/react
 ```
 
 ## Public API
@@ -23,14 +24,15 @@ npm install @1consent/react@beta
 - `OneConsentProvider` embeds the CMP and framework-associated fast path.
 - `OneConsent` gates plain script, iframe, pixel, or other intrinsic markup by
   configured service or category.
-- `useConsent` returns the current decision and reacts to CMP updates.
+- `useConsent(name)` returns whether a service or category currently has
+  consent (`false` until consent is known) and reacts to CMP updates.
 - `OneConsentServiceMap` and `OneConsentCategoryMap` are declaration-merging
   targets populated by `1c typegen`.
 
-The generated declaration files are included in the package. React is the
-only peer dependency, Zod is the only public runtime dependency, and 1Consent
-workspace implementation packages are bundled into the JavaScript artifact
-instead of becoming consumer dependencies.
+The generated declaration files are included in the package. React 19 is the
+only peer dependency and there are no runtime dependencies: 1Consent workspace
+implementation packages are bundled into the JavaScript artifact instead of
+becoming consumer dependencies.
 
 See the 1Consent developer reference for the complete API and integration
 guidance.
@@ -60,5 +62,5 @@ From this repository's root, pack the reviewed artifact into an existing directo
 npm pack ./packages/libs/react --pack-destination /path/to/tarballs
 ```
 
-Install that tarball in a React 19+ test project. This repository contains the
+Install that tarball in a React 19 test project. This repository contains the
 reviewed distribution artifacts; it does not contain the private source build.

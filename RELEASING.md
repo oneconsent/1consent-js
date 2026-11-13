@@ -1,7 +1,20 @@
 # Release guide
 
-This guide covers `@1consent/react`, `@1consent/nextjs`, `@1consent/cli`, and `@1consent/site-check`.
-Consumer installation and integration examples are in the [README](README.md).
+This guide is for maintainers of `@1consent/react`, `@1consent/nextjs`, `@1consent/cli`, and
+`@1consent/site-check`. Consumer installation and integration examples are in the [README](README.md).
+
+## Release lines
+
+Packages release in lines. Each line has its own version and immutable tag prefix, and every
+package in a line releases together at that line's version:
+
+| Line | Packages | Tag |
+| --- | --- | --- |
+| `sdk` | `@1consent/react`, `@1consent/nextjs`, `@1consent/cli` | `npm-v<version>` |
+| `site-check` | `@1consent/site-check` | `npm-site-check-v<version>` |
+
+The lines are defined once in `scripts/npm-release-lines.mjs`; the workflow derives the line from
+the tag.
 
 ## Repository boundary
 
@@ -28,26 +41,41 @@ npm run check:secrets
 npm run verify:npm-packages
 ```
 
-These checks verify the exact file manifest, inspect the npm tarballs, and install and
+These checks verify the exact file manifest, inspect every package tarball, and install and
 execute them in a clean consumer project. Before a release, also review the package metadata,
 README examples, and npm registry state.
 
-## Beta publishing policy
+## Channels
 
-The workflow is [Publish npm beta](.github/workflows/publish-npm.yml). Publishing runs only from an
-immutable beta tag whose commit is contained in `main`. Use `npm-v<version>` for the
-three SDK packages and `npm-vsite-check-<version>` for the standalone skill. The publishing job uses
-the protected `npm-beta` environment, validates the exact artifacts, and includes npm provenance.
+A release's version picks its npm channel. The channels are defined once in
+`scripts/npm-release-lines.mjs` (`NPM_RELEASE_CHANNELS`) and the workflow's tag guard:
 
-Every beta is staged for a maintainer's npm 2FA approval. The first `0.1.0-beta.1` release uses a
+| Version | Example tag | npm dist-tag | Protected environment |
+| --- | --- | --- | --- |
+| `<major>.<minor>.<patch>-beta.<n>` | `npm-v0.2.0-beta.0` | `beta` | `npm-beta` |
+| `<major>.<minor>.<patch>` | `npm-v0.1.0` | `latest` | `npm-stable` |
+
+The workflow never stages a beta under `latest` or a release under `beta`. Each channel advances
+only forward: the workflow refuses a version that is not newer than the channel's current dist-tag,
+and a beta must also be newer than the current `latest` release. On `latest`, npm's `0.0.0-stage`
+registration placeholder counts as older than any release.
+
+## Publishing policy
+
+The workflow is [Publish npm](.github/workflows/publish-npm.yml). Publishing runs only from an
+immutable release tag of one release line (`npm-v<version>` or `npm-site-check-v<version>`) whose
+commit is contained in `main`, and stages only that line's packages under the channel's dist-tag.
+Its publishing job runs in the channel's protected environment, validates the exact artifacts, and
+includes npm provenance.
+
+Every release is staged for a maintainer's npm 2FA approval. The first `0.1.0-beta.1` release of a line used a
 short-lived, scope-limited token with **Read and write (stage only)** permission and **2FA bypass
-disabled**. Store the skill's credential only as `SITE_CHECK_BOOTSTRAP_TOKEN` in the
-`npm-beta` environment. The SDK path uses `NPM_BOOTSTRAP_TOKEN`. Later releases use
-the configured GitHub OIDC trusted publisher with stage-only permission.
+disabled**. Later releases use the configured GitHub OIDC trusted publisher with stage-only
+permission; a stable release always does.
 
-For a new package, npm staging creates a publicly available `0.0.0-stage` registration placeholder.
-The staged beta and its contents become installable only after approval. No beta is promoted to
-`latest`. This follows npm's documented [staging](https://docs.npmjs.com/staged-publishing/) and
+For a new package, npm staging creates a publicly available `0.0.0-stage` registration placeholder
+under `latest`. The staged version and its contents become installable only after approval. This
+follows npm's documented [staging](https://docs.npmjs.com/staged-publishing/) and
 [trusted-publishing](https://docs.npmjs.com/trusted-publishers/) mechanisms; the exact manifest,
 tag naming, and environment policy are this project's safeguards.
 
@@ -56,29 +84,34 @@ The corrected first release is `0.1.0-beta.1`; the failed tag remains unchanged.
 
 ## Release sequence
 
-1. Review the public snapshot and merge it into `main` after all required checks pass.
-2. Create the immutable beta tag from that exact reviewed commit. Never move or reuse a release tag.
-3. Dispatch **Publish npm beta** from the tag with operation `publish`. Select publisher
-   `bootstrap-token` for the first `0.1.0-beta.1` release, or `trusted-publisher` for later betas.
+1. Review the public snapshot and merge it into `main` after all required checks pass. Every
+   package of the line carries the release version, and `publishConfig.tag` is the channel's
+   dist-tag.
+2. Create the release line's immutable tag from that exact reviewed commit. Never move or
+   reuse a release tag.
+3. Dispatch **Publish npm** from the tag with operation `publish` and publisher
+   `trusted-publisher`.
 4. Review each staged tarball in npm, then approve it with 2FA.
 5. Dispatch the workflow from protected `main` with operation `verify` and `release_tag` set to
    the immutable tag. Read-only verification uses the reviewed verifier at the workflow commit
    while checking the original tagged artifacts, release identity, and protected environment.
    It cannot stage packages and has no npm credential or OIDC permission.
-6. Confirm exact tarball integrity, `beta` tags, clean installation/execution, and verified provenance
-   before advertising the release. Keep the README's published beta status current.
+6. Confirm exact tarball integrity, the channel's dist-tag, clean installation/execution, and verified
+   provenance before advertising the release. Record it in [CHANGELOG.md](CHANGELOG.md).
 
 A pending stage is not a published version. Approve it before rerunning, or reject it explicitly
 before restaging the same reviewed tag. The workflow skips an already published version only if
-its tarball integrity and `beta` tag match the reviewed release.
+its tarball integrity matches the reviewed release and it still owns the channel's dist-tag.
 
 ## Trusted-publisher handoff
 
-Configure GitHub Actions for organization `oneconsent`, repository `1consent-js`, workflow filename
-`publish-npm.yml`, environment `npm-beta`, with `npm stage publish` permission only. A new connection
-must complete its first successful publish within npm's two-day activation window; a saved
-configuration alone is not a verified handoff.
+For each package, configure GitHub Actions for organization `oneconsent`, repository `1consent-js`,
+workflow filename `publish-npm.yml`, with `npm stage publish` permission only: one connection with
+environment `npm-beta` and one with environment `npm-stable`. A new connection must complete its
+first successful publish within npm's two-day activation window; a saved configuration alone is not
+a verified handoff, so add the `npm-stable` connection only when the first stable release is ready
+to stage.
 
 Restrict traditional package publishing access to **Require two-factor authentication and disallow
-tokens**, delete the selected release's bootstrap secret, and revoke the temporary npm token during
+tokens**, delete the GitHub `NPM_BOOTSTRAP_TOKEN` secret, and revoke the temporary npm token during
 handoff. Verify the OIDC connection works before recording the handoff as complete.
