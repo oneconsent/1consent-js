@@ -9,21 +9,19 @@ import {
 } from "node:fs";
 import { relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import {
+    NPM_RELEASE_LINES,
+    npmReleaseChannel,
+    npmReleaseLine,
+    npmReleaseLineOfDirectory,
+} from "./npm-release-lines.mjs";
 
 export const PUBLIC_RELEASE_MANIFEST = "public-release-manifest.json";
 export const PUBLIC_PACKAGE_FILES = {
-    "packages/libs/site-check": [
-        "LICENSE",
-        "README.md",
-        "dist/site-check.mjs",
-        "package.json",
-        "skills/oneconsent-site-check/SKILL.md",
-        "skills/oneconsent-site-check/references/generic-prompt.md",
-        "skills/oneconsent-site-check/references/mcp.md",
-    ],
     "packages/libs/react": [
         "LICENSE",
         "README.md",
+        "dist/client-provider.d.ts",
         "dist/index.d.ts",
         "dist/index.js",
         "dist/one-consent.d.ts",
@@ -59,13 +57,28 @@ export const PUBLIC_PACKAGE_FILES = {
         "dist/design-kit/ui/index.html",
         "package.json",
     ],
+    "packages/libs/site-check": [
+        "LICENSE",
+        "README.md",
+        "dist/site-check.mjs",
+        "package.json",
+        "skills/oneconsent-site-check/SKILL.md",
+        "skills/oneconsent-site-check/references/generic-prompt.md",
+        "skills/oneconsent-site-check/references/mcp.md",
+    ],
 };
+/** Package entry points that must keep their executable bit. */
+export const PUBLIC_EXECUTABLES = [
+    "packages/libs/cli/dist/cli.js",
+    "packages/libs/site-check/dist/site-check.mjs",
+];
 
 export const PUBLIC_RELEASE_FILES = [
     ".github/dependabot.yml",
     ".github/workflows/publish-npm.yml",
     ".github/workflows/quality.yml",
     ".gitignore",
+    "CHANGELOG.md",
     "CONTRIBUTING.md",
     "LICENSE",
     "README.md",
@@ -79,6 +92,7 @@ export const PUBLIC_RELEASE_FILES = [
     "scripts/check-secrets.test.mjs",
     "scripts/npm-pack-report.mts",
     "scripts/npm-pack-report.test.mts",
+    "scripts/npm-release-lines.mjs",
     "scripts/npm-release-state.mts",
     "scripts/npm-release-state.test.mts",
     "scripts/public-release-manifest.mjs",
@@ -90,6 +104,9 @@ export const PUBLIC_RELEASE_FILES = [
 ].sort();
 
 const REVIEWED_1CONSENT_PACKAGE_HOSTS = new Set([
+    // Public documentation and asset origins used by customer authoring guidance.
+    "1consent.app",
+    "cdn.1consent.app",
     "cmp.1consent.app",
     "cmp.1consent.dev",
     "cmp.1consent.local",
@@ -100,9 +117,6 @@ const REVIEWED_1CONSENT_PACKAGE_HOSTS = new Set([
     "web.cmp.1consent.dev",
     "web.cmp.1consent.local",
 ]);
-
-const SITE_CHECK_PACKAGE = "packages/libs/site-check";
-const SITE_CHECK_PUBLIC_ORIGINS = new Set(["1consent.app", "cdn.1consent.app"]);
 
 function normalize(path) {
     return path.replaceAll("\\", "/");
@@ -155,8 +169,14 @@ function packageMetadata(root, directory) {
     if (!packageName || manifest.name !== `@1consent/${packageName}`) {
         throw new Error(`[PublicReleaseManifest] Unexpected package identity: ${directory}`);
     }
-    if (typeof manifest.version !== "string" || !/^0\.\d+\.\d+-beta\.\d+$/.test(manifest.version)) {
-        throw new Error(`[PublicReleaseManifest] Package is not a 0.x beta: ${directory}`);
+    let channel;
+    try {
+        channel = npmReleaseChannel(manifest.version);
+    } catch (error) {
+        throw new Error(
+            `[PublicReleaseManifest] Package is neither a release nor a beta prerelease: ${directory}`,
+            { cause: error },
+        );
     }
     if (manifest.scripts !== undefined || manifest.devDependencies !== undefined) {
         throw new Error(
@@ -170,7 +190,8 @@ function packageMetadata(root, directory) {
         manifest.publishConfig?.access !== "public" ||
         manifest.publishConfig?.provenance !== true ||
         manifest.publishConfig?.registry !== "https://registry.npmjs.org/" ||
-        manifest.publishConfig?.tag !== "beta"
+        // The dist-tag must be the version's channel: `beta` for a beta, `latest` for a release.
+        manifest.publishConfig?.tag !== channel.distTag
     ) {
         throw new Error(`[PublicReleaseManifest] Unsafe publishConfig in ${directory}`);
     }
@@ -183,17 +204,6 @@ function packageMetadata(root, directory) {
             manifest.peerDependencies?.next !== ">=16.0.0 <17.0.0")
     ) {
         throw new Error("[PublicReleaseManifest] Next.js adapter dependency boundary drifted");
-    }
-    if (packageName === "site-check") {
-        const dependencies = manifest.dependencies;
-        if (
-            !isRecord(dependencies) ||
-            Object.keys(dependencies).length !== 1 ||
-            !/^\d+\.\d+\.\d+$/.test(dependencies.patchright) ||
-            manifest.bin?.["oneconsent-site-check"] !== "./dist/site-check.mjs"
-        ) {
-            throw new Error("[PublicReleaseManifest] Site check runtime dependency or entry point drifted");
-        }
     }
     return { directory, name: manifest.name, version: manifest.version };
 }
@@ -215,8 +225,7 @@ function assertExactPackageFiles(root) {
                 const host = match[1];
                 if (
                     /(?:^|\.)1consent\.(?:app|dev|local)$/.test(host) &&
-                    !REVIEWED_1CONSENT_PACKAGE_HOSTS.has(host) &&
-                    !(directory === SITE_CHECK_PACKAGE && SITE_CHECK_PUBLIC_ORIGINS.has(host))
+                    !REVIEWED_1CONSENT_PACKAGE_HOSTS.has(host)
                 ) {
                     throw new Error(
                         `[PublicReleaseManifest] Unreviewed 1Consent service hostname in ${directory}/${path}: ${host}`,
@@ -226,10 +235,23 @@ function assertExactPackageFiles(root) {
         }
     }
 
-    for (const bin of ["packages/libs/cli/dist/cli.js", "packages/libs/site-check/dist/site-check.mjs"]) {
-        if ((statSync(resolve(root, bin)).mode & 0o111) === 0) {
-            throw new Error(`[PublicReleaseManifest] Entry point must be executable: ${bin}`);
+    for (const path of PUBLIC_EXECUTABLES) {
+        if ((statSync(resolve(root, path)).mode & 0o111) === 0) {
+            throw new Error(`[PublicReleaseManifest] Package entry point must be executable: ${path}`);
         }
+    }
+}
+
+/** Every public package belongs to exactly one release line, and every line package is public. */
+function assertReleaseLinesCoverPublicPackages() {
+    const linePackages = Object.keys(NPM_RELEASE_LINES).flatMap((name) =>
+        npmReleaseLine(name).packages.map(({ directory }) => directory),
+    );
+    const publicPackages = Object.keys(PUBLIC_PACKAGE_FILES);
+    if (JSON.stringify([...linePackages].sort()) !== JSON.stringify([...publicPackages].sort())) {
+        throw new Error(
+            `[PublicReleaseManifest] Release lines and public packages differ.\nRelease lines: ${linePackages.join(", ")}\nPublic packages: ${publicPackages.join(", ")}`,
+        );
     }
 }
 
@@ -244,12 +266,21 @@ export function createPublicReleaseManifest(root) {
             `[PublicReleaseManifest] Public repository file boundary changed.\nExpected: ${PUBLIC_RELEASE_FILES.join(", ")}\nActual: ${actualReleaseFiles.join(", ")}`,
         );
     }
+    assertReleaseLinesCoverPublicPackages();
     const packages = Object.keys(PUBLIC_PACKAGE_FILES).map((directory) =>
         packageMetadata(normalizedRoot, directory),
     );
-    const sdkPackages = packages.filter(({ name }) => name !== "@1consent/site-check");
-    if (new Set(sdkPackages.map(({ version }) => version)).size !== 1) {
-        throw new Error("[PublicReleaseManifest] All SDK package versions must match");
+    for (const lineName of Object.keys(NPM_RELEASE_LINES)) {
+        const versions = new Set(
+            packages
+                .filter(({ directory }) => npmReleaseLineOfDirectory(directory) === lineName)
+                .map(({ version }) => version),
+        );
+        if (versions.size !== 1) {
+            throw new Error(
+                `[PublicReleaseManifest] All ${lineName} package versions must match`,
+            );
+        }
     }
     const files = actualReleaseFiles.map((path) => fileRecord(normalizedRoot, path));
     return { schemaVersion: 1, packages, files };

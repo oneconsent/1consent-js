@@ -1,6 +1,6 @@
 {
     "name": "@1consent/react",
-    "version": "0.1.0-beta.3",
+    "version": "0.1.0",
     "description": "React 19 consent components and hooks for the 1Consent CMP.",
     "type": "module",
     "sideEffects": false,
@@ -25,7 +25,7 @@
         "access": "public",
         "provenance": true,
         "registry": "https://registry.npmjs.org/",
-        "tag": "beta"
+        "tag": "latest"
     },
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -34,6 +34,7 @@
         "dist/index.d.ts",
         "dist/react-server.js",
         "dist/react-server.d.ts",
+        "dist/client-provider.d.ts",
         "dist/one-consent.d.ts",
         "dist/provider.d.ts",
         "dist/types.d.ts",
@@ -49,9 +50,6 @@
         }
     },
     "peerDependencies": {
-        "react": ">=19.0.0"
-    },
-    "dependencies": {
-        "zod": "^4.4.3"
+        "react": ">=19.0.0 <20.0.0"
     }
 }

@@ -2,8 +2,9 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+// Loaded beside this verifier from the same reviewed commit, never from the release checkout.
+import { npmReleaseChannel, npmReleaseLine, npmReleaseTag } from "./npm-release-lines.mjs";
 
-const RELEASE_PACKAGES = ["@1consent/react", "@1consent/nextjs", "@1consent/cli"] as const;
 const SLSA_PREDICATE = "https://slsa.dev/provenance/v1";
 const IN_TOTO_STATEMENT = "https://in-toto.io/Statement/v1";
 const GITHUB_BUILD_TYPE = "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1";
@@ -36,8 +37,8 @@ const REQUIRED_FULCIO_OIDS = new Set<string>(Object.values(FULCIO_OIDS));
 type JsonRecord = Record<string, unknown>;
 
 export interface ExpectedProvenance {
+    line: string;
     version: string;
-    siteCheck?: boolean;
     repository: string;
     workflow: string;
     ref: string;
@@ -372,11 +373,16 @@ export function assertVerifiedReleaseProvenance(
     auditReportValue: unknown,
     expected: ExpectedProvenance,
 ): void {
-    if (!/^0\.\d+\.\d+-beta\.\d+$/.test(expected.version)) fail("version must be a 0.x beta");
+    let channel: ReturnType<typeof npmReleaseChannel>;
+    try {
+        channel = npmReleaseChannel(expected.version);
+    } catch {
+        fail("version must be a release or a beta prerelease");
+    }
     if (!/^[a-f0-9]{40}$/.test(expected.commit)) fail("commit must be a full lowercase SHA-1");
-    const prefix = expected.siteCheck ? "npm-vsite-check-" : "npm-v";
-    if (expected.ref !== `refs/tags/${prefix}${expected.version}`) {
-        fail("ref must be the immutable npm tag for the selected version");
+    const line = npmReleaseLine(expected.line);
+    if (expected.ref !== `refs/tags/${npmReleaseTag(line.name, expected.version)}`) {
+        fail("ref must be the immutable npm tag for the selected release line and version");
     }
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(expected.repository)) {
         fail("repository must be an owner/name pair");
@@ -384,7 +390,9 @@ export function assertVerifiedReleaseProvenance(
     if (!/^\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/.test(expected.workflow)) {
         fail("workflow must be a GitHub Actions workflow path");
     }
-    if (!/^[A-Za-z0-9_.-]+$/.test(expected.environment)) fail("environment is invalid");
+    if (expected.environment !== channel.environment) {
+        fail(`environment must be ${channel.environment} for a ${channel.distTag} release`);
+    }
 
     const auditReport = record(auditReportValue, "npm audit report");
     if (array(auditReport.invalid, "npm audit invalid list").length > 0) {
@@ -395,7 +403,7 @@ export function assertVerifiedReleaseProvenance(
     }
     const verified = array(auditReport.verified, "npm audit verified list");
 
-    for (const packageName of expected.siteCheck ? ["@1consent/site-check"] : RELEASE_PACKAGES) {
+    for (const { name: packageName } of line.packages) {
         const matches = verified.filter((entry) => {
             if (!isRecord(entry)) return false;
             return entry.name === packageName && entry.version === expected.version;
@@ -439,8 +447,8 @@ export function main(argv: readonly string[] = process.argv.slice(2)): void {
         throw new Error("[NpmProvenance] npm audit report is not valid JSON", { cause: error });
     }
     const expected: ExpectedProvenance = {
+        line: argument(argv, "--line"),
         version: argument(argv, "--version"),
-        siteCheck: argv.includes("--site-check"),
         repository: argument(argv, "--repository"),
         workflow: argument(argv, "--workflow"),
         ref: argument(argv, "--ref"),
@@ -449,7 +457,9 @@ export function main(argv: readonly string[] = process.argv.slice(2)): void {
     };
     assertVerifiedReleaseProvenance(auditReport, expected);
     process.stdout.write(
-        `[NpmProvenance] Verified npm signatures and exact GitHub release identity for ${(expected.siteCheck ? ["@1consent/site-check"] : RELEASE_PACKAGES).map((name) => `${name}@${expected.version}`).join(" and ")}.\n`,
+        `[NpmProvenance] Verified npm signatures and exact GitHub release identity for ${npmReleaseLine(expected.line)
+            .packages.map(({ name }) => `${name}@${expected.version}`)
+            .join(" and ")}.\n`,
     );
 }
 

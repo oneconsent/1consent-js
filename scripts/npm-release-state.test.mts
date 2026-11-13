@@ -1,21 +1,29 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { test } from "node:test";
+import { NPM_RELEASE_CHANNELS } from "./npm-release-lines.mjs";
 import {
-    assertBetaChannelAdvances,
-    assertPublishedBetaTagMatches,
+    assertBetaFollowsLatest,
+    assertChannelAdvances,
+    assertReleaseFullyPublished,
+    assertPublishedChannelTagMatches,
     assertPublishedIntegrityMatches,
     assertPublisherMatchesRelease,
     classifyPackageState,
-    interpretNpmBetaTagResult,
+    compareReleaseVersions,
+    interpretNpmDistTagResult,
     interpretNpmIntegrityResult,
     interpretNpmViewResult,
+    packagesToStage,
     releasePublisher,
     releaseVersion,
 } from "./npm-release-state.mts";
+
+const BETA = { name: "beta", ...NPM_RELEASE_CHANNELS.beta };
+const STABLE = { name: "stable", ...NPM_RELEASE_CHANNELS.stable };
 
 function workflowScript(stepName: string): string {
     const workflow = readFileSync(
@@ -44,6 +52,11 @@ function executeStagingStep(environment: Record<string, string>): {
     const log = resolve(directory, "calls.log");
     for (const name of ["react", "nextjs", "cli", "site-check"])
         mkdirSync(resolve(directory, "packages/libs", name), { recursive: true });
+    mkdirSync(resolve(directory, "scripts"));
+    copyFileSync(
+        new URL("./npm-release-lines.mjs", import.meta.url),
+        resolve(directory, "scripts/npm-release-lines.mjs"),
+    );
     try {
         const result = spawnSync(
             "bash",
@@ -53,7 +66,7 @@ function executeStagingStep(environment: Record<string, string>): {
                 "-c",
                 `
             npm() {
-                [[ "$*" == "stage publish --tag beta --access public --provenance" ]] || exit 97
+                [[ "$*" == "stage publish --tag $EXPECTED_DIST_TAG --access public --provenance" ]] || exit 97
                 auth_kind=oidc
                 if [[ -n "\${NODE_AUTH_TOKEN-}" ]]; then
                     [[ "$NODE_AUTH_TOKEN" == "stage-only-fixture" ]] || exit 98
@@ -70,9 +83,10 @@ function executeStagingStep(environment: Record<string, string>): {
                 env: {
                     ...process.env,
                     NODE_AUTH_TOKEN: "inherited-token-must-be-unset",
-                    RELEASE_TARGET: "sdk",
-                    SITE_CHECK_BOOTSTRAP_TOKEN: "",
                     STAGING_TEST_LOG: log,
+                    RELEASE_LINE: "sdk",
+                    DIST_TAG: "beta",
+                    EXPECTED_DIST_TAG: environment.DIST_TAG ?? "beta",
                     ...environment,
                 },
             },
@@ -90,9 +104,7 @@ test("the real workflow supplies the bootstrap token when explicitly staging mis
     const result = executeStagingStep({
         PUBLISHER_MODE: "bootstrap-token",
         NPM_BOOTSTRAP_TOKEN: "stage-only-fixture",
-        REACT_STATE: "bootstrap",
-        NEXTJS_STATE: "stage",
-        CLI_STATE: "published",
+        STAGE_PACKAGES: "react nextjs",
     });
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(result.calls, ["react|token", "nextjs|token"]);
@@ -102,89 +114,112 @@ test("the real trusted-publisher workflow clears inherited token authentication"
     const result = executeStagingStep({
         PUBLISHER_MODE: "trusted-publisher",
         NPM_BOOTSTRAP_TOKEN: "",
-        REACT_STATE: "published",
-        NEXTJS_STATE: "stage",
-        CLI_STATE: "stage",
+        STAGE_PACKAGES: "nextjs cli",
     });
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(result.calls, ["nextjs|oidc", "cli|oidc"]);
+});
+
+test("the real workflow stages the site check line on its own", () => {
+    const result = executeStagingStep({
+        PUBLISHER_MODE: "trusted-publisher",
+        NPM_BOOTSTRAP_TOKEN: "",
+        RELEASE_LINE: "site-check",
+        STAGE_PACKAGES: "site-check",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(result.calls, ["site-check|oidc"]);
+});
+
+test("the real workflow stages a stable release under the latest dist-tag", () => {
+    const result = executeStagingStep({
+        PUBLISHER_MODE: "trusted-publisher",
+        NPM_BOOTSTRAP_TOKEN: "",
+        DIST_TAG: "latest",
+        STAGE_PACKAGES: "react nextjs cli",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(result.calls, ["react|oidc", "nextjs|oidc", "cli|oidc"]);
+});
+
+test("an unknown dist-tag stops the real workflow before staging", () => {
+    for (const tag of ["", "next", "beta latest"]) {
+        const result = executeStagingStep({
+            PUBLISHER_MODE: "trusted-publisher",
+            NPM_BOOTSTRAP_TOKEN: "",
+            DIST_TAG: tag,
+            STAGE_PACKAGES: "react",
+        });
+        assert.notEqual(result.status, 0);
+        assert.deepEqual(result.calls, []);
+    }
 });
 
 test("missing bootstrap credentials stop the real workflow before staging", () => {
     const result = executeStagingStep({
         PUBLISHER_MODE: "bootstrap-token",
         NPM_BOOTSTRAP_TOKEN: "",
-        REACT_STATE: "bootstrap",
-        NEXTJS_STATE: "bootstrap",
-        CLI_STATE: "bootstrap",
+        STAGE_PACKAGES: "react nextjs cli",
     });
     assert.notEqual(result.status, 0);
     assert.deepEqual(result.calls, []);
     assert.match(result.stderr, /must be a stage-only token/);
 });
 
-test("unknown registry states stop the real workflow before staging any package", () => {
-    const result = executeStagingStep({
-        PUBLISHER_MODE: "trusted-publisher",
-        NPM_BOOTSTRAP_TOKEN: "",
-        REACT_STATE: "stage",
-        NEXTJS_STATE: "invalid",
-        CLI_STATE: "stage",
+for (const [label, line, packages] of [
+    ["a package from another release line", "sdk", "react site-check"],
+    ["an SDK package in the site check line", "site-check", "site-check react"],
+    ["a path outside the package directory", "sdk", "react ../react"],
+    ["an unknown release line", "unknown", "react"],
+] as const) {
+    test(`${label} stops the real workflow before staging any package`, () => {
+        const result = executeStagingStep({
+            PUBLISHER_MODE: "trusted-publisher",
+            NPM_BOOTSTRAP_TOKEN: "",
+            RELEASE_LINE: line,
+            STAGE_PACKAGES: packages,
+        });
+        assert.notEqual(result.status, 0);
+        assert.deepEqual(result.calls, []);
     });
-    assert.notEqual(result.status, 0);
-    assert.deepEqual(result.calls, []);
-    assert.match(result.stderr, /Unexpected registry state/);
-});
+}
 
 test("a fully verified published release performs no staging calls", () => {
     const result = executeStagingStep({
         PUBLISHER_MODE: "trusted-publisher",
         NPM_BOOTSTRAP_TOKEN: "",
-        REACT_STATE: "published",
-        NEXTJS_STATE: "published",
-        CLI_STATE: "published",
+        STAGE_PACKAGES: "",
     });
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(result.calls, []);
 });
 
-test("a site check bootstrap stages only the skill using its own credential", () => {
-    const result = executeStagingStep({
-        RELEASE_TARGET: "site-check",
-        PUBLISHER_MODE: "bootstrap-token",
-        SITE_CHECK_BOOTSTRAP_TOKEN: "stage-only-fixture",
-        SITE_CHECK_STATE: "bootstrap",
-        NPM_BOOTSTRAP_TOKEN: "sdk-token-must-not-be-used",
-        REACT_STATE: "stage",
-        NEXTJS_STATE: "stage",
-        CLI_STATE: "stage",
-    });
-    assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(result.calls, ["site-check|token"]);
+test("only packages missing their exact version are staged", () => {
+    assert.deepEqual(
+        packagesToStage([
+            ["react", "published"],
+            ["nextjs", "stage"],
+            ["cli", "bootstrap"],
+        ]),
+        ["nextjs", "cli"],
+    );
+    assert.deepEqual(packagesToStage([["site-check", "published"]]), []);
 });
 
-test("a site check bootstrap cannot use the SDK credential", () => {
-    const result = executeStagingStep({
-        RELEASE_TARGET: "site-check",
-        PUBLISHER_MODE: "bootstrap-token",
-        SITE_CHECK_STATE: "bootstrap",
-        NPM_BOOTSTRAP_TOKEN: "stage-only-fixture",
-    });
-    assert.notEqual(result.status, 0);
-    assert.deepEqual(result.calls, []);
-    assert.match(result.stderr, /must be a stage-only token/);
-});
-
-test("a site check update uses only OIDC and only stages the skill", () => {
-    const result = executeStagingStep({
-        RELEASE_TARGET: "site-check",
-        PUBLISHER_MODE: "trusted-publisher",
-        SITE_CHECK_BOOTSTRAP_TOKEN: "stage-only-fixture",
-        SITE_CHECK_STATE: "stage",
-        REACT_STATE: "stage",
-    });
-    assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(result.calls, ["site-check|oidc"]);
+test("verification requires every package of the line to own the exact version", () => {
+    assert.doesNotThrow(() =>
+        assertReleaseFullyPublished("site-check", "0.1.0-beta.1", [["site-check", "published"]]),
+    );
+    assert.throws(
+        () =>
+            assertReleaseFullyPublished("sdk", "0.1.0-beta.4", [
+                ["react", "published"],
+                ["nextjs", "stage"],
+                ["cli", "published"],
+            ]),
+        /not yet published: nextjs/,
+    );
+    assert.throws(() => assertReleaseFullyPublished("sdk", "0.1.0-beta.4", []), /no packages/);
 });
 
 test("publishing uses an explicit authentication mode", () => {
@@ -229,22 +264,36 @@ test("OIDC fails before staging a package without a trusted-publisher setup surf
     );
 });
 
-test("accepts beta versions across the prerelease lane", () => {
-    for (const version of ["0.1.0-beta.0", "0.2.0-beta.1", "1.0.0-beta.12"]) {
+test("accepts beta prereleases and stable releases", () => {
+    for (const version of ["0.1.0-beta.0", "0.2.0-beta.1", "1.0.0-beta.12", "0.1.0", "1.20.3"]) {
         assert.equal(releaseVersion(["--version", version]), version);
     }
 });
 
-test("rejects stable, malformed, and non-beta versions", () => {
+test("rejects malformed and other prerelease versions", () => {
     for (const version of [
-        "0.1.0",
         "0.1.0-alpha.0",
+        "0.1.0-rc.1",
         "0.1.0-beta",
         "01.1.0-beta.0",
         "0.1.0-beta.01",
+        "01.0.0",
+        "0.1",
+        "v0.1.0",
     ]) {
-        assert.throws(() => releaseVersion(["--version", version]), /must be a valid/);
+        assert.throws(() => releaseVersion(["--version", version]), /neither a/);
     }
+    assert.throws(() => releaseVersion([]), /required/);
+});
+
+test("the stable release is staged only by a trusted publisher", () => {
+    assert.throws(
+        () => assertPublisherMatchesRelease("bootstrap-token", "0.1.0", ["stage"]),
+        /bootstrap token may stage only/,
+    );
+    assert.doesNotThrow(() =>
+        assertPublisherMatchesRelease("trusted-publisher", "0.1.0", ["stage", "stage", "stage"]),
+    );
 });
 
 test("an already published exact version is idempotently skipped", () => {
@@ -267,17 +316,24 @@ test("an existing version is skipped only when its registry tarball is exact", (
     );
 });
 
-test("an existing version is skipped only while it owns the beta dist-tag", () => {
-    const packageSpec = "@1consent/react@0.1.0-beta.0";
+test("an existing version is skipped only while it owns its channel's dist-tag", () => {
     assert.doesNotThrow(() =>
-        assertPublishedBetaTagMatches(packageSpec, "0.1.0-beta.0", "0.1.0-beta.0"),
+        assertPublishedChannelTagMatches("@1consent/react@0.1.0", "0.1.0", STABLE, "0.1.0"),
     );
     assert.throws(
-        () => assertPublishedBetaTagMatches(packageSpec, "0.1.0-beta.0", "0.1.0-beta.1"),
+        () => assertPublishedChannelTagMatches("@1consent/react@0.1.0", "0.1.0", STABLE, "0.0.0-stage"),
+        /latest tag resolves to 0\.0\.0-stage/,
+    );
+    const packageSpec = "@1consent/react@0.1.0-beta.0";
+    assert.doesNotThrow(() =>
+        assertPublishedChannelTagMatches(packageSpec, "0.1.0-beta.0", BETA, "0.1.0-beta.0"),
+    );
+    assert.throws(
+        () => assertPublishedChannelTagMatches(packageSpec, "0.1.0-beta.0", BETA, "0.1.0-beta.1"),
         /refusing an old-tag rerun/,
     );
     assert.throws(
-        () => assertPublishedBetaTagMatches(packageSpec, "0.1.0-beta.0", undefined),
+        () => assertPublishedChannelTagMatches(packageSpec, "0.1.0-beta.0", BETA, undefined),
         /resolves to nothing/,
     );
 });
@@ -332,13 +388,13 @@ test("reads npm 12 single-value registry integrity arrays", () => {
 
 test("reads npm 12 beta-tag arrays and its empty missing-field result", () => {
     assert.equal(
-        interpretNpmBetaTagResult(0, '["0.1.0-beta.4"]', "", "@1consent/react"),
+        interpretNpmDistTagResult(0, '["0.1.0-beta.4"]', "", "@1consent/react", BETA),
         "0.1.0-beta.4",
     );
-    assert.equal(interpretNpmBetaTagResult(0, "[]", "", "@1consent/react"), undefined);
+    assert.equal(interpretNpmDistTagResult(0, "[]", "", "@1consent/react", BETA), undefined);
     for (const report of [["0.1.0-beta.4", "0.1.0-beta.5"], [null], [["0.1.0-beta.4"]]]) {
         assert.throws(
-            () => interpretNpmBetaTagResult(0, JSON.stringify(report), "", "@1consent/react"),
+            () => interpretNpmDistTagResult(0, JSON.stringify(report), "", "@1consent/react", BETA),
             /invalid|Ambiguous/,
         );
     }
@@ -355,15 +411,15 @@ test("allows only releases that advance the current beta channel", () => {
         ["0.2.0-beta.0", "0.1.99-beta.99"],
         ["1.0.0-beta.0", "0.99.99-beta.99"],
     ]) {
-        assert.doesNotThrow(() => assertBetaChannelAdvances(release, current));
+        assert.doesNotThrow(() => assertChannelAdvances(release, BETA, current));
     }
-    assert.doesNotThrow(() => assertBetaChannelAdvances("0.1.0-beta.0", undefined));
+    assert.doesNotThrow(() => assertChannelAdvances("0.1.0-beta.0", BETA, undefined));
 });
 
 test("rejects equal and older releases before they can move the beta channel backward", () => {
     for (const release of ["0.1.0-beta.4", "0.1.0-beta.3", "0.0.99-beta.99"]) {
         assert.throws(
-            () => assertBetaChannelAdvances(release, "0.1.0-beta.4"),
+            () => assertChannelAdvances(release, BETA, "0.1.0-beta.4"),
             /must be newer than the current beta tag/,
         );
     }
@@ -371,35 +427,91 @@ test("rejects equal and older releases before they can move the beta channel bac
 
 test("reads the current registry beta tag and permits a missing channel", () => {
     assert.equal(
-        interpretNpmBetaTagResult(0, '"0.1.0-beta.4"\n', "", "@1consent/react"),
+        interpretNpmDistTagResult(0, '"0.1.0-beta.4"\n', "", "@1consent/react", BETA),
         "0.1.0-beta.4",
     );
-    assert.equal(interpretNpmBetaTagResult(0, "", "", "@1consent/react"), undefined);
-    assert.equal(interpretNpmBetaTagResult(0, "null\n", "", "@1consent/react"), undefined);
+    assert.equal(interpretNpmDistTagResult(0, "", "", "@1consent/react", BETA), undefined);
+    assert.equal(interpretNpmDistTagResult(0, "null\n", "", "@1consent/react", BETA), undefined);
     assert.equal(
-        interpretNpmBetaTagResult(
+        interpretNpmDistTagResult(
             1,
             "",
             JSON.stringify({ error: { code: "E404", summary: "No match found for version beta" } }),
-            "@1consent/react",
-        ),
+            "@1consent/react", BETA),
         undefined,
     );
 });
 
 test("fails closed when the current beta tag cannot be trusted", () => {
     assert.throws(
-        () => interpretNpmBetaTagResult(1, "", "npm error code E500", "@1consent/cli"),
+        () => interpretNpmDistTagResult(1, "", "npm error code E500", "@1consent/cli", BETA),
         /Registry lookup failed/,
     );
     assert.throws(
-        () => interpretNpmBetaTagResult(0, "not-json", "", "@1consent/cli"),
+        () => interpretNpmDistTagResult(0, "not-json", "", "@1consent/cli", BETA),
         /invalid JSON/,
     );
     assert.throws(
-        () => interpretNpmBetaTagResult(0, '"latest"', "", "@1consent/cli"),
+        () => interpretNpmDistTagResult(0, '"latest"', "", "@1consent/cli", BETA),
         /invalid beta tag/,
     );
+});
+
+test("the latest channel advances from npm's placeholder and only forward", () => {
+    for (const [release, current] of [
+        ["0.1.0", "0.0.0-stage"],
+        ["0.1.1", "0.1.0"],
+        ["1.0.0", "0.99.99"],
+    ]) {
+        assert.doesNotThrow(() => assertChannelAdvances(release, STABLE, current));
+    }
+    for (const [release, current] of [
+        ["0.1.0", "0.1.0"],
+        ["0.0.9", "0.1.0"],
+    ]) {
+        assert.throws(
+            () => assertChannelAdvances(release, STABLE, current),
+            /must be newer than the current latest tag/,
+        );
+    }
+});
+
+test("a beta must rank above the current latest release", () => {
+    assert.doesNotThrow(() => assertBetaFollowsLatest("0.2.0-beta.0", "0.1.0"));
+    assert.doesNotThrow(() => assertBetaFollowsLatest("0.1.0-beta.4", "0.0.0-stage"));
+    assert.doesNotThrow(() => assertBetaFollowsLatest("0.1.0-beta.4", undefined));
+    for (const release of ["0.1.0-beta.4", "0.0.9-beta.0"]) {
+        assert.throws(
+            () => assertBetaFollowsLatest(release, "0.1.0"),
+            /must be newer than the current latest release 0\.1\.0/,
+        );
+    }
+});
+
+test("orders versions by SemVer precedence", () => {
+    for (const [older, newer] of [
+        ["0.0.0-stage", "0.1.0-beta.0"],
+        ["0.1.0-beta.3", "0.1.0"],
+        ["0.1.0-beta.9", "0.1.0-beta.10"],
+        ["0.1.0-beta.10", "0.1.1-beta.0"],
+        ["0.1.0", "0.2.0-beta.0"],
+        ["1.0.0-1", "1.0.0-beta"],
+    ]) {
+        assert.ok(compareReleaseVersions(older, newer) < 0, `${older} < ${newer}`);
+        assert.ok(compareReleaseVersions(newer, older) > 0, `${newer} > ${older}`);
+    }
+    assert.equal(compareReleaseVersions("0.1.0", "0.1.0"), 0);
+});
+
+test("reads the latest tag, accepting only stable versions and npm's placeholder", () => {
+    assert.equal(interpretNpmDistTagResult(0, '"0.0.0-stage"', "", "@1consent/react", STABLE), "0.0.0-stage");
+    assert.equal(interpretNpmDistTagResult(0, '["0.1.0"]', "", "@1consent/react", STABLE), "0.1.0");
+    for (const value of ['"0.1.0-beta.3"', '"0.0.0-other"', '"latest"']) {
+        assert.throws(
+            () => interpretNpmDistTagResult(0, value, "", "@1consent/react", STABLE),
+            /invalid latest tag/,
+        );
+    }
 });
 
 test("bootstrap is reserved for a package name proven absent", () => {
@@ -445,7 +557,7 @@ function executeReleaseSelection(environment: Record<string, string>) {
     try {
         const result = spawnSync(
             "bash",
-            ["-euo", "pipefail", "-c", workflowScript("Derive the prerelease version")],
+            ["-euo", "pipefail", "-c", workflowScript("Derive the release line, version and channel")],
             {
                 encoding: "utf8",
                 env: {
@@ -474,14 +586,50 @@ function executeReleaseSelection(environment: Record<string, string>) {
 test("publishing uses only the dispatched immutable tag", () => {
     const result = executeReleaseSelection({});
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.output, "version=0.1.0-beta.1\ntarget=sdk\ntag=npm-v0.1.0-beta.1\n");
+    assert.equal(
+        result.output,
+        "line=sdk\nversion=0.1.0-beta.1\ntag=npm-v0.1.0-beta.1\ndist_tag=beta\nenvironment=npm-beta\n",
+    );
 });
 
-test("the immutable skill tag selects the skill and retains its own version", () => {
-    const tag = "npm-vsite-check-0.1.0-beta.1";
-    const result = executeReleaseSelection({ RELEASE_TAG: tag, WORKFLOW_REF: `refs/tags/${tag}` });
+test("a site check tag selects the site check line and its own version", () => {
+    const result = executeReleaseSelection({
+        RELEASE_TAG: "npm-site-check-v0.1.0-beta.1",
+        WORKFLOW_REF: "refs/tags/npm-site-check-v0.1.0-beta.1",
+    });
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.output, `version=0.1.0-beta.1\ntarget=site-check\ntag=${tag}\n`);
+    assert.equal(
+        result.output,
+        "line=site-check\nversion=0.1.0-beta.1\ntag=npm-site-check-v0.1.0-beta.1\ndist_tag=beta\nenvironment=npm-beta\n",
+    );
+});
+
+test("a stable tag stages under latest from the stable environment", () => {
+    for (const [tag, line] of [
+        ["npm-v0.1.0", "sdk"],
+        ["npm-site-check-v1.0.0", "site-check"],
+    ]) {
+        const result = executeReleaseSelection({ RELEASE_TAG: tag, WORKFLOW_REF: `refs/tags/${tag}` });
+        const version = tag.replace(/^npm-(?:site-check-)?v/, "");
+        assert.equal(result.status, 0, result.stderr);
+        assert.equal(
+            result.output,
+            `line=${line}\nversion=${version}\ntag=${tag}\ndist_tag=latest\nenvironment=npm-stable\n`,
+        );
+    }
+});
+
+test("the tag guard derives the same channel as the release-channel table", () => {
+    for (const version of ["0.1.0", "2.3.4", "0.1.0-beta.3", "1.0.0-beta.0"]) {
+        const tag = `npm-v${version}`;
+        const result = executeReleaseSelection({ RELEASE_TAG: tag, WORKFLOW_REF: `refs/tags/${tag}` });
+        const channel = version.includes("-beta.") ? BETA : STABLE;
+        assert.equal(result.status, 0, result.stderr);
+        assert.match(
+            result.output,
+            new RegExp(`dist_tag=${channel.distTag}\nenvironment=${channel.environment}\n$`),
+        );
+    }
 });
 
 test("main may select an existing immutable tag only for read-only verification", () => {
@@ -493,20 +641,10 @@ test("main may select an existing immutable tag only for read-only verification"
         REQUESTED_RELEASE_TAG: "npm-v0.1.0-beta.1",
     });
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.output, "version=0.1.0-beta.1\ntarget=sdk\ntag=npm-v0.1.0-beta.1\n");
-});
-
-test("protected main can verify the skill tag without selecting the SDK release", () => {
-    const tag = "npm-vsite-check-0.1.0-beta.1";
-    const result = executeReleaseSelection({
-        REF_TYPE: "branch",
-        RELEASE_TAG: "main",
-        WORKFLOW_REF: "refs/heads/main",
-        OPERATION: "verify",
-        REQUESTED_RELEASE_TAG: tag,
-    });
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.output, `version=0.1.0-beta.1\ntarget=site-check\ntag=${tag}\n`);
+    assert.equal(
+        result.output,
+        "line=sdk\nversion=0.1.0-beta.1\ntag=npm-v0.1.0-beta.1\ndist_tag=beta\nenvironment=npm-beta\n",
+    );
 });
 
 for (const [label, environment] of [
@@ -532,8 +670,11 @@ for (const [label, environment] of [
         { REF_TYPE: "branch", WORKFLOW_REF: "refs/heads/main", OPERATION: "verify" },
     ],
     ["overriding a published tag", { REQUESTED_RELEASE_TAG: "npm-v0.1.0-beta.2" }],
-    ["stable tag", { RELEASE_TAG: "npm-v1.0.0" }],
+    ["release-candidate tag", { RELEASE_TAG: "npm-v1.0.0-rc.1" }],
     ["malformed tag", { RELEASE_TAG: "npm-v0.1.0-beta.1;echo bad" }],
+    ["malformed stable tag", { RELEASE_TAG: "npm-v1.0.0;echo bad" }],
+    ["leading-zero stable tag", { RELEASE_TAG: "npm-v01.0.0" }],
+    ["unknown release line tag", { RELEASE_TAG: "npm-other-v0.1.0-beta.1" }],
 ] satisfies Array<readonly [string, Record<string, string>]>) {
     test(`release selection rejects ${label}`, () => {
         const result = executeReleaseSelection(environment);

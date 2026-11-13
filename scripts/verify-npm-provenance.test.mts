@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { npmReleaseLine } from "./npm-release-lines.mjs";
 import {
     assertVerifiedReleaseProvenance,
     certificateExtensions,
@@ -8,6 +9,7 @@ import {
 } from "./verify-npm-provenance.mts";
 
 const expected: ExpectedProvenance = {
+    line: "sdk",
     version: "0.1.0-beta.0",
     repository: "oneconsent/1consent-js",
     workflow: ".github/workflows/publish-npm.yml",
@@ -83,17 +85,14 @@ function extensionValues(options: ExpectedProvenance): Map<string, string> {
     ]);
 }
 
-function auditReport(
-    options: ExpectedProvenance = expected,
-    packages = ["@1consent/react", "@1consent/nextjs", "@1consent/cli"],
-) {
+function auditReport(options: ExpectedProvenance = expected) {
     const repositoryUrl = `https://github.com/${options.repository}`;
     const invocation = `${repositoryUrl}/actions/runs/123/attempts/1`;
     const invalid: unknown[] = [];
     return {
         invalid,
         missing: [],
-        verified: packages.map((name) => {
+        verified: npmReleaseLine(options.line).packages.map(({ name }) => {
             const slash = name.indexOf("/");
             const purl = `pkg:npm/${encodeURIComponent(name.slice(0, slash))}/${encodeURIComponent(name.slice(slash + 1))}@${options.version}`;
             const statement = {
@@ -162,19 +161,70 @@ test("accepts only npm-verified bundles bound to the selected tagged release", (
     assert.doesNotThrow(() => assertVerifiedReleaseProvenance(auditReport(), expected));
 });
 
-test("verifies the standalone package only against its own immutable release tag", () => {
-    const siteCheck = {
-        ...expected,
-        siteCheck: true,
-        ref: "refs/tags/npm-vsite-check-0.1.0-beta.0",
-    };
-    const report = auditReport(siteCheck, ["@1consent/site-check"]);
-    assert.doesNotThrow(() => assertVerifiedReleaseProvenance(report, siteCheck));
-    assert.throws(() => assertVerifiedReleaseProvenance(report, expected), /verified list/);
+const siteCheck: ExpectedProvenance = {
+    ...expected,
+    line: "site-check",
+    version: "0.1.0-beta.1",
+    ref: "refs/tags/npm-site-check-v0.1.0-beta.1",
+};
+
+test("verifies each release line against its own tag and packages", () => {
+    assert.doesNotThrow(() => assertVerifiedReleaseProvenance(auditReport(siteCheck), siteCheck));
     assert.throws(
-        () => assertVerifiedReleaseProvenance(report, { ...siteCheck, ref: expected.ref }),
-        /immutable npm tag/,
+        () =>
+            assertVerifiedReleaseProvenance(auditReport(siteCheck), {
+                ...siteCheck,
+                ref: "refs/tags/npm-v0.1.0-beta.1",
+            }),
+        /immutable npm tag for the selected release line/,
     );
+    assert.throws(
+        () =>
+            assertVerifiedReleaseProvenance(auditReport(siteCheck), {
+                ...expected,
+                version: siteCheck.version,
+                ref: "refs/tags/npm-v0.1.0-beta.1",
+            }),
+        /@1consent\/react@0\.1\.0-beta\.1 is not exactly once/,
+    );
+    assert.throws(
+        () => assertVerifiedReleaseProvenance(auditReport(), { ...expected, line: "unknown" }),
+        /Unknown release line/,
+    );
+});
+
+test("binds a stable release to the stable environment and a beta to the beta environment", () => {
+    const stable: ExpectedProvenance = {
+        ...expected,
+        version: "0.1.0",
+        ref: "refs/tags/npm-v0.1.0",
+        environment: "npm-stable",
+    };
+    assert.doesNotThrow(() => assertVerifiedReleaseProvenance(auditReport(stable), stable));
+    assert.throws(
+        () =>
+            assertVerifiedReleaseProvenance(auditReport(stable), {
+                ...stable,
+                environment: "npm-beta",
+            }),
+        /environment must be npm-stable for a latest release/,
+    );
+    assert.throws(
+        () =>
+            assertVerifiedReleaseProvenance(auditReport(), { ...expected, environment: "npm-stable" }),
+        /environment must be npm-beta for a beta release/,
+    );
+    for (const version of ["0.1.0-rc.1", "01.0.0", "0.1"]) {
+        assert.throws(
+            () =>
+                assertVerifiedReleaseProvenance(auditReport(), {
+                    ...expected,
+                    version,
+                    ref: `refs/tags/npm-v${version}`,
+                }),
+            /version must be a release or a beta prerelease/,
+        );
+    }
 });
 
 test("extracts Fulcio's DER-encoded identity extensions", () => {

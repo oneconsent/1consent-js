@@ -1,10 +1,10 @@
-name: Publish npm beta
+name: Publish npm
 
 on:
   workflow_dispatch:
     inputs:
       operation:
-        description: Stage/publish the selected beta tag, or verify it after npm approval
+        description: Stage/publish the selected release tag (npm-v* for the SDK, npm-site-check-v* for the site check; a -beta.N version stages under beta, a plain version under latest), or verify it after npm approval
         required: true
         default: publish
         type: choice
@@ -12,7 +12,7 @@ on:
           - publish
           - verify
       release_tag:
-        description: Existing immutable beta tag to verify when dispatching from main; leave empty when publishing
+        description: Existing immutable release tag to verify when dispatching from main; leave empty when publishing
         required: false
         type: string
       publisher:
@@ -31,21 +31,23 @@ env:
   NPM_PUBLIC_SOURCE_REPOSITORY: oneconsent/1consent-js
 
 concurrency:
-  group: npm-beta-release-lane
+  group: npm-release-lane
   cancel-in-progress: false
 
 jobs:
   prepare:
-    name: Validate immutable beta tag
+    name: Validate immutable release tag
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
+      line: ${{ steps.release.outputs.line }}
       version: ${{ steps.release.outputs.version }}
       tag: ${{ steps.release.outputs.tag }}
-      target: ${{ steps.release.outputs.target }}
+      dist_tag: ${{ steps.release.outputs.dist_tag }}
+      environment: ${{ steps.release.outputs.environment }}
       commit: ${{ steps.source.outputs.commit }}
     steps:
-      - name: Derive the prerelease version
+      - name: Derive the release line, version and channel
         id: release
         env:
           REF_TYPE: ${{ github.ref_type }}
@@ -58,7 +60,7 @@ jobs:
             RELEASE_TAG="$REQUESTED_RELEASE_TAG"
           else
             if [[ "$REF_TYPE" != "tag" ]]; then
-              echo "Publishing requires an immutable beta tag; branch verification requires main." >&2
+              echo "Publishing requires an immutable release tag; branch verification requires main." >&2
               exit 1
             fi
             if [[ -n "$REQUESTED_RELEASE_TAG" ]]; then
@@ -66,22 +68,32 @@ jobs:
               exit 1
             fi
           fi
-          target=sdk
-          version="${RELEASE_TAG#npm-v}"
-          if [[ "$RELEASE_TAG" == npm-vsite-check-* ]]; then
-            target=site-check
-            version="${RELEASE_TAG#npm-vsite-check-}"
-          elif [[ "$RELEASE_TAG" != npm-v* ]]; then
-            echo "Use an immutable npm beta tag." >&2
+          stable_version='(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)'
+          beta_version="${stable_version}-beta\\.(0|[1-9][0-9]*)"
+          # Each release line owns one tag prefix, and each version pattern one channel; keep
+          # these in step with NPM_RELEASE_LINES and NPM_RELEASE_CHANNELS in scripts/npm-release-lines.mjs.
+          if [[ "$RELEASE_TAG" =~ ^npm-v(${stable_version}|${beta_version})$ ]]; then
+            release_line=sdk
+            release_version="${RELEASE_TAG#npm-v}"
+          elif [[ "$RELEASE_TAG" =~ ^npm-site-check-v(${stable_version}|${beta_version})$ ]]; then
+            release_line=site-check
+            release_version="${RELEASE_TAG#npm-site-check-v}"
+          else
+            echo "Tag must be a release such as npm-v0.1.0 or a beta prerelease such as npm-site-check-v0.1.0-beta.0." >&2
             exit 1
           fi
-          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-beta\.(0|[1-9][0-9]*)$ ]]; then
-            echo "Use a beta prerelease tag for the selected package set." >&2
-            exit 1
+          if [[ "$release_version" =~ ^${beta_version}$ ]]; then
+            dist_tag=beta
+            environment=npm-beta
+          else
+            dist_tag=latest
+            environment=npm-stable
           fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "target=$target" >> "$GITHUB_OUTPUT"
+          echo "line=$release_line" >> "$GITHUB_OUTPUT"
+          echo "version=$release_version" >> "$GITHUB_OUTPUT"
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=$dist_tag" >> "$GITHUB_OUTPUT"
+          echo "environment=$environment" >> "$GITHUB_OUTPUT"
 
       - name: Checkout complete release history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -107,13 +119,13 @@ jobs:
           echo "commit=$tagged_commit" >> "$GITHUB_OUTPUT"
 
   publish:
-    name: Build and stage npm beta
+    name: Build and stage npm release
     if: inputs.operation == 'publish'
     needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
-      name: npm-beta
+      name: ${{ needs.prepare.outputs.environment }}
     permissions:
       contents: read
       id-token: write
@@ -148,25 +160,29 @@ jobs:
       - name: Install the verified npm release CLI
         run: npm install --global npm@12.2.0
 
-      - name: Validate beta package manifests
+      - name: Validate release package manifests
         env:
+          RELEASE_LINE: ${{ needs.prepare.outputs.line }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
-          RELEASE_TARGET: ${{ needs.prepare.outputs.target }}
+          DIST_TAG: ${{ needs.prepare.outputs.dist_tag }}
         run: |
-          package_names=(react nextjs cli)
-          if [[ "$RELEASE_TARGET" == "site-check" ]]; then
-            package_names=(site-check)
-          fi
           expected_repository="git+https://github.com/${NPM_PUBLIC_SOURCE_REPOSITORY}.git"
-          for package_name in "${package_names[@]}"; do
+          require() {
+            if [[ "$(jq -r "$2" "$1")" != "$3" ]]; then
+              echo "$1: $2 must be $3." >&2
+              exit 1
+            fi
+          }
+          package_names="$(node scripts/npm-release-lines.mjs packages --line "$RELEASE_LINE")"
+          for package_name in $package_names; do
             manifest="packages/libs/$package_name/package.json"
-            [[ "$(jq -r .version "$manifest")" == "$RELEASE_VERSION" ]]
-            [[ "$(jq -r '.private // false' "$manifest")" == "false" ]]
-            [[ "$(jq -r .repository.url "$manifest")" == "$expected_repository" ]]
-            [[ "$(jq -r .publishConfig.access "$manifest")" == "public" ]]
-            [[ "$(jq -r .publishConfig.provenance "$manifest")" == "true" ]]
-            [[ "$(jq -r .publishConfig.registry "$manifest")" == "https://registry.npmjs.org/" ]]
-            [[ "$(jq -r .publishConfig.tag "$manifest")" == "beta" ]]
+            require "$manifest" .version "$RELEASE_VERSION"
+            require "$manifest" '.private // false' false
+            require "$manifest" .repository.url "$expected_repository"
+            require "$manifest" .publishConfig.access public
+            require "$manifest" .publishConfig.provenance true
+            require "$manifest" .publishConfig.registry https://registry.npmjs.org/
+            require "$manifest" .publishConfig.tag "$DIST_TAG"
           done
 
       - name: Scan the exact tracked release
@@ -181,85 +197,59 @@ jobs:
       - name: Detect idempotent registry actions
         id: registry
         env:
+          RELEASE_LINE: ${{ needs.prepare.outputs.line }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
           PUBLISHER_MODE: ${{ inputs.publisher }}
-          RELEASE_TARGET: ${{ needs.prepare.outputs.target }}
         run: |
-          options=()
-          if [[ "$RELEASE_TARGET" == "site-check" ]]; then
-            options+=(--site-check)
-          fi
-          node scripts/npm-release-state.mts --version "$RELEASE_VERSION" --publisher "$PUBLISHER_MODE" "${options[@]}" >> "$GITHUB_OUTPUT"
+          registry_state="$(node scripts/npm-release-state.mts --line "$RELEASE_LINE" --version "$RELEASE_VERSION" --publisher "$PUBLISHER_MODE")"
+          printf '%s\n' "$registry_state" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$registry_state" > "$RUNNER_TEMP/npm-registry-state.txt"
 
       - name: Stage reviewed packages for npm 2FA approval
         env:
           PUBLISHER_MODE: ${{ inputs.publisher }}
-          RELEASE_TARGET: ${{ needs.prepare.outputs.target }}
-          NPM_BOOTSTRAP_TOKEN: ${{ inputs.publisher == 'bootstrap-token' && needs.prepare.outputs.target == 'sdk' && secrets.NPM_BOOTSTRAP_TOKEN || '' }}
-          SITE_CHECK_BOOTSTRAP_TOKEN: ${{ inputs.publisher == 'bootstrap-token' && needs.prepare.outputs.target == 'site-check' && secrets.SITE_CHECK_BOOTSTRAP_TOKEN || '' }}
-          SITE_CHECK_STATE: ${{ steps.registry.outputs.site-check }}
-          REACT_STATE: ${{ steps.registry.outputs.react }}
-          NEXTJS_STATE: ${{ steps.registry.outputs.nextjs }}
-          CLI_STATE: ${{ steps.registry.outputs.cli }}
+          NPM_BOOTSTRAP_TOKEN: ${{ inputs.publisher == 'bootstrap-token' && secrets.NPM_BOOTSTRAP_TOKEN || '' }}
+          RELEASE_LINE: ${{ needs.prepare.outputs.line }}
+          DIST_TAG: ${{ needs.prepare.outputs.dist_tag }}
+          STAGE_PACKAGES: ${{ steps.registry.outputs.to_stage }}
         run: |
           set -euo pipefail
           if [[ "$PUBLISHER_MODE" == "bootstrap-token" ]]; then
-            token="$NPM_BOOTSTRAP_TOKEN"
-            if [[ "$RELEASE_TARGET" == "site-check" ]]; then
-              token="$SITE_CHECK_BOOTSTRAP_TOKEN"
-            fi
-            if [[ -z "$token" ]]; then
-              echo "The credential for the selected package set must be a stage-only token without 2FA bypass." >&2
+            if [[ -z "$NPM_BOOTSTRAP_TOKEN" ]]; then
+              echo "NPM_BOOTSTRAP_TOKEN must be a stage-only token without 2FA bypass." >&2
               exit 1
             fi
-            export NODE_AUTH_TOKEN="$token"
+            export NODE_AUTH_TOKEN="$NPM_BOOTSTRAP_TOKEN"
           elif [[ "$PUBLISHER_MODE" == "trusted-publisher" ]]; then
             unset NODE_AUTH_TOKEN
           else
             echo "Unknown npm publisher mode." >&2
             exit 1
           fi
-          if [[ "$RELEASE_TARGET" == "site-check" ]]; then
-            package_names=(site-check)
-            registry_states=("$SITE_CHECK_STATE")
-          else
-            package_names=(react nextjs cli)
-            registry_states=("$REACT_STATE" "$NEXTJS_STATE" "$CLI_STATE")
+          if [[ "$DIST_TAG" != "beta" && "$DIST_TAG" != "latest" ]]; then
+            echo "Unknown npm release channel." >&2
+            exit 1
           fi
-          for registry_state in "${registry_states[@]}"; do
-            if [[ "$registry_state" != "bootstrap" && "$registry_state" != "stage" ]]; then
-              if [[ "$registry_state" != "published" ]]; then
-                echo "Unexpected registry state." >&2
-                exit 1
-              fi
+          line_packages=" $(node scripts/npm-release-lines.mjs packages --line "$RELEASE_LINE") "
+          for package_name in $STAGE_PACKAGES; do
+            if [[ "$line_packages" != *" $package_name "* ]]; then
+              echo "Unexpected package for the $RELEASE_LINE release line." >&2
+              exit 1
             fi
           done
-          for index in "${!package_names[@]}"; do
-            package_name="${package_names[$index]}"
-            if [[ "${registry_states[$index]}" == "published" ]]; then
-              continue
-            fi
-            (cd "packages/libs/$package_name" && npm stage publish --tag beta --access public --provenance)
+          for package_name in $STAGE_PACKAGES; do
+            (cd "packages/libs/$package_name" && npm stage publish --tag "$DIST_TAG" --access public --provenance)
           done
 
       - name: Record the publication result
         env:
-          RELEASE_TARGET: ${{ needs.prepare.outputs.target }}
-          SITE_CHECK_STATE: ${{ steps.registry.outputs.site-check }}
-          CLI_STATE: ${{ steps.registry.outputs.cli }}
-          NEXTJS_STATE: ${{ steps.registry.outputs.nextjs }}
-          REACT_STATE: ${{ steps.registry.outputs.react }}
+          RELEASE_LINE: ${{ needs.prepare.outputs.line }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          DIST_TAG: ${{ needs.prepare.outputs.dist_tag }}
         run: |
           {
-            echo "## npm beta $RELEASE_VERSION"
-            if [[ "$RELEASE_TARGET" == "site-check" ]]; then
-              echo "- @1consent/site-check: $SITE_CHECK_STATE"
-            else
-              echo "- @1consent/react: $REACT_STATE"
-              echo "- @1consent/nextjs: $NEXTJS_STATE"
-              echo "- @1consent/cli: $CLI_STATE"
-            fi
+            echo "## npm $RELEASE_VERSION ($RELEASE_LINE, $DIST_TAG)"
+            grep -v '^to_stage=' "$RUNNER_TEMP/npm-registry-state.txt" | sed 's/^/- @1consent\//; s/=/: /'
             echo ""
             echo "Approve staged packages with npm 2FA, then rerun this workflow with operation=verify."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -283,7 +273,9 @@ jobs:
       - name: Load the reviewed verifier from this workflow commit
         env:
           VERIFIER_COMMIT: ${{ github.sha }}
-        run: git show "${VERIFIER_COMMIT}:scripts/verify-npm-provenance.mts" > "$RUNNER_TEMP/verify-npm-provenance.mts"
+        run: |
+          git show "${VERIFIER_COMMIT}:scripts/verify-npm-provenance.mts" > "$RUNNER_TEMP/verify-npm-provenance.mts"
+          git show "${VERIFIER_COMMIT}:scripts/npm-release-lines.mjs" > "$RUNNER_TEMP/npm-release-lines.mjs"
 
       - name: Set up Node.js for registry verification
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -303,34 +295,18 @@ jobs:
 
       - name: Bind registry versions to the tagged tarballs
         env:
+          RELEASE_LINE: ${{ needs.prepare.outputs.line }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
-          RELEASE_TARGET: ${{ needs.prepare.outputs.target }}
-        run: |
-          set -euo pipefail
-          options=()
-          expected=$'react=published\nnextjs=published\ncli=published'
-          if [[ "$RELEASE_TARGET" == "site-check" ]]; then
-            options+=(--site-check)
-            expected='site-check=published'
-          fi
-          registry_state="$(node scripts/npm-release-state.mts --version "$RELEASE_VERSION" "${options[@]}")"
-          if [[ "$registry_state" != "$expected" ]]; then
-            echo "All selected exact local tarballs must already own the npm beta channel." >&2
-            printf '%s\n' "$registry_state" >&2
-            exit 1
-          fi
+        run: node scripts/npm-release-state.mts --line "$RELEASE_LINE" --version "$RELEASE_VERSION" --require-published
 
-      - name: Install, execute, and verify exact SDK release provenance
-        if: needs.prepare.outputs.target == 'sdk'
+      - name: Install and execute the exact SDK release
+        if: needs.prepare.outputs.line == 'sdk'
         env:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
-          RELEASE_REF: refs/tags/${{ needs.prepare.outputs.tag }}
-          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
         run: |
           set -euo pipefail
-          consumer_dir="$(mktemp -d)"
-          trap 'rm -rf "$consumer_dir"' EXIT
-          cd "$consumer_dir"
+          mkdir "$RUNNER_TEMP/npm-consumer"
+          cd "$RUNNER_TEMP/npm-consumer"
           npm init --yes
           npm pkg set private=true type=module
           npm install --ignore-scripts --save-exact \
@@ -339,56 +315,55 @@ jobs:
             "@1consent/cli@$RELEASE_VERSION" \
             "next@^16.0.0" \
             "react@^19.0.0" \
-            "react-dom@^19.0.0" \
-            "zod@^4.0.0"
+            "react-dom@^19.0.0"
           ./node_modules/.bin/1c --help | grep -q "Manage 1Consent"
           ./node_modules/.bin/1c typegen --help | grep -q -- "--app <shortId>"
           node --input-type=module --eval \
             'import * as sdk from "@1consent/react"; import * as nextSdk from "@1consent/nextjs"; import { parseConsentCookie } from "@1consent/nextjs/server"; import { designKit } from "@1consent/cli/design-kit"; for (const name of ["OneConsent", "OneConsentProvider", "useConsent"]) { if (typeof sdk[name] !== "function") throw new Error(`Missing React export ${name}`); if (typeof nextSdk[name] !== "function") throw new Error(`Missing Next.js export ${name}`); } if (parseConsentCookie(undefined, {}, 0) !== "none") throw new Error("Next.js server helper did not fail closed"); if (typeof designKit !== "function") throw new Error("Missing designKit export");'
           node --conditions=react-server --input-type=module --eval \
             'import * as sdk from "@1consent/nextjs"; if ("useConsent" in sdk) throw new Error("Next.js RSC export leaks useConsent"); for (const name of ["OneConsent", "OneConsentProvider"]) if (typeof sdk[name] !== "function") throw new Error(`Missing Next.js RSC export ${name}`);'
-          npm audit signatures --json --include-attestations > npm-audit-signatures.json
-          node "$RUNNER_TEMP/verify-npm-provenance.mts" \
-            --audit-report npm-audit-signatures.json \
-            --version "$RELEASE_VERSION" \
-            --repository "$NPM_PUBLIC_SOURCE_REPOSITORY" \
-            --workflow .github/workflows/publish-npm.yml \
-            --ref "$RELEASE_REF" \
-            --commit "$RELEASE_COMMIT" \
-            --environment npm-beta
 
-      - name: Install, execute, and verify exact site check release provenance
-        if: needs.prepare.outputs.target == 'site-check'
+      - name: Install and execute the exact site check release
+        if: needs.prepare.outputs.line == 'site-check'
         env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/npm-consumer"
+          cd "$RUNNER_TEMP/npm-consumer"
+          npm init --yes
+          npm pkg set private=true type=module
+          npm install --ignore-scripts --save-exact "@1consent/site-check@$RELEASE_VERSION"
+          ./node_modules/.bin/oneconsent-site-check --version | grep -q "^Site check specification "
+
+      - name: Verify exact release provenance
+        env:
+          RELEASE_LINE: ${{ needs.prepare.outputs.line }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
           RELEASE_REF: refs/tags/${{ needs.prepare.outputs.tag }}
           RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+          RELEASE_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
         run: |
           set -euo pipefail
-          consumer_dir="$(mktemp -d)"
-          trap 'rm -rf "$consumer_dir"' EXIT
-          cd "$consumer_dir"
-          npm init --yes
-          npm pkg set private=true
-          npm install --ignore-scripts --save-exact --no-audit "@1consent/site-check@$RELEASE_VERSION"
-          ./node_modules/.bin/oneconsent-site-check --version | grep -Eq '^Site check specification [0-9]+[.][0-9]+[.][0-9]+$'
-          test -s node_modules/@1consent/site-check/skills/oneconsent-site-check/SKILL.md
+          cd "$RUNNER_TEMP/npm-consumer"
           npm audit signatures --json --include-attestations > npm-audit-signatures.json
           node "$RUNNER_TEMP/verify-npm-provenance.mts" \
-            --site-check \
             --audit-report npm-audit-signatures.json \
+            --line "$RELEASE_LINE" \
             --version "$RELEASE_VERSION" \
             --repository "$NPM_PUBLIC_SOURCE_REPOSITORY" \
             --workflow .github/workflows/publish-npm.yml \
             --ref "$RELEASE_REF" \
             --commit "$RELEASE_COMMIT" \
-            --environment npm-beta
+            --environment "$RELEASE_ENVIRONMENT"
 
       - name: Record verified public installation
         env:
+          RELEASE_LINE: ${{ needs.prepare.outputs.line }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          DIST_TAG: ${{ needs.prepare.outputs.dist_tag }}
         run: |
           {
-            echo "## Verified npm beta $RELEASE_VERSION"
-            echo "The selected scoped packages match the tagged tarballs, install and execute, own the beta dist-tag, and have npm-verified provenance bound to this repository, workflow, tag, commit, and protected environment."
+            echo "## Verified npm $RELEASE_VERSION ($RELEASE_LINE, $DIST_TAG)"
+            echo "Every $RELEASE_LINE package matches the tagged tarballs, install and execute, own the $DIST_TAG dist-tag, and have npm-verified provenance bound to this repository, workflow, tag, commit, and protected environment."
           } >> "$GITHUB_STEP_SUMMARY"

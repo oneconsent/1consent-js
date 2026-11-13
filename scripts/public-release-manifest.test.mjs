@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { afterEach, test } from "node:test";
 import {
+    PUBLIC_EXECUTABLES,
     PUBLIC_PACKAGE_FILES,
     PUBLIC_RELEASE_FILES,
     verifyPublicReleaseManifest,
@@ -15,10 +16,10 @@ afterEach(() => {
     for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-function packageManifest(name, directory) {
+function packageManifest(name, directory, version = "0.1.0-beta.0") {
     const manifest = {
         name,
-        version: "0.1.0-beta.0",
+        version,
         repository: {
             type: "git",
             url: "git+https://github.com/oneconsent/1consent-js.git",
@@ -28,16 +29,12 @@ function packageManifest(name, directory) {
             access: "public",
             provenance: true,
             registry: "https://registry.npmjs.org/",
-            tag: "beta",
+            tag: version.includes("-beta.") ? "beta" : "latest",
         },
     };
     if (name === "@1consent/nextjs") {
-        manifest.dependencies = { "@1consent/react": "0.1.0-beta.0" };
+        manifest.dependencies = { "@1consent/react": version };
         manifest.peerDependencies = { next: ">=16.0.0 <17.0.0" };
-    }
-    if (name === "@1consent/site-check") {
-        manifest.dependencies = { patchright: "1.64.3" };
-        manifest.bin = { "oneconsent-site-check": "./dist/site-check.mjs" };
     }
     return manifest;
 }
@@ -62,8 +59,7 @@ function fixture() {
             }
         }
     }
-    chmodSync(resolve(root, "packages/libs/cli/dist/cli.js"), 0o755);
-    chmodSync(resolve(root, "packages/libs/site-check/dist/site-check.mjs"), 0o755);
+    for (const path of PUBLIC_EXECUTABLES) chmodSync(resolve(root, path), 0o755);
     writePublicReleaseManifest(root);
     return root;
 }
@@ -120,21 +116,81 @@ test("rejects an unreviewed internal service hostname", () => {
     assert.throws(() => writePublicReleaseManifest(root), /Unreviewed 1Consent service hostname/);
 });
 
-test("allows the site check beta to advance independently of the SDK packages", () => {
+test("accepts reviewed public documentation and asset origins in customer authoring guidance", () => {
     const root = fixture();
-    const directory = "packages/libs/site-check";
-    const manifest = packageManifest("@1consent/site-check", directory);
-    manifest.version = "0.2.0-beta.1";
-    writeFileSync(resolve(root, directory, "package.json"), JSON.stringify(manifest));
-    const release = writePublicReleaseManifest(root);
-    assert.equal(release.packages.find(({ name }) => name === manifest.name).version, manifest.version);
+    writeFileSync(
+        resolve(root, "packages/libs/cli/dist/cli.js"),
+        'const origins = { web: "https://1consent.app/docs/reference/cli", cdn: "https://cdn.1consent.app" };\n',
+    );
+    assert.doesNotThrow(() => writePublicReleaseManifest(root));
+    assert.doesNotThrow(() => verifyPublicReleaseManifest(root));
 });
 
-test("rejects a private dependency in the site check distribution", () => {
+test("does not extend the public documentation allowance to other environments", () => {
     const root = fixture();
-    const directory = "packages/libs/site-check";
-    const manifest = packageManifest("@1consent/site-check", directory);
-    manifest.dependencies["@1consent/contracts"] = "0.1.0";
-    writeFileSync(resolve(root, directory, "package.json"), JSON.stringify(manifest));
-    assert.throws(() => writePublicReleaseManifest(root), /Site check runtime dependency/);
+    for (const host of ["1consent.dev", "cdn.1consent.dev", "1consent.local", "cdn.1consent.local"]) {
+        writeFileSync(
+            resolve(root, "packages/libs/cli/dist/cli.js"),
+            `const url = "https://${host}";\n`,
+        );
+        assert.throws(() => writePublicReleaseManifest(root), /Unreviewed 1Consent service hostname/);
+    }
+});
+
+function writePackageVersion(root, shortName, version) {
+    const directory = `packages/libs/${shortName}`;
+    writeFileSync(
+        resolve(root, directory, "package.json"),
+        `${JSON.stringify(packageManifest(`@1consent/${shortName}`, directory, version))}\n`,
+    );
+}
+
+test("versions each release line on its own", () => {
+    const root = fixture();
+    writePackageVersion(root, "site-check", "0.1.0-beta.1");
+    assert.doesNotThrow(() => writePublicReleaseManifest(root));
+    assert.doesNotThrow(() => verifyPublicReleaseManifest(root));
+});
+
+test("keeps every package inside one release line at one version", () => {
+    const root = fixture();
+    writePackageVersion(root, "cli", "0.1.0-beta.1");
+    assert.throws(() => writePublicReleaseManifest(root), /All sdk package versions must match/);
+});
+
+test("accepts a stable release line on the latest dist-tag", () => {
+    const root = fixture();
+    for (const shortName of ["react", "nextjs", "cli"]) writePackageVersion(root, shortName, "0.1.0");
+    assert.doesNotThrow(() => writePublicReleaseManifest(root));
+    assert.doesNotThrow(() => verifyPublicReleaseManifest(root));
+});
+
+test("rejects a dist-tag that is not the version's channel", () => {
+    for (const [version, tag] of [
+        ["0.1.0", "beta"],
+        ["0.1.0-beta.4", "latest"],
+    ]) {
+        const root = fixture();
+        const path = resolve(root, "packages/libs/react/package.json");
+        const manifest = packageManifest("@1consent/react", "packages/libs/react", version);
+        manifest.publishConfig.tag = tag;
+        writeFileSync(path, `${JSON.stringify(manifest)}\n`);
+        assert.throws(() => writePublicReleaseManifest(root), /Unsafe publishConfig/);
+    }
+});
+
+test("rejects versions that are neither a release nor a beta prerelease", () => {
+    for (const version of ["0.1.0-rc.1", "01.0.0"]) {
+        const root = fixture();
+        writePackageVersion(root, "react", version);
+        assert.throws(() => writePublicReleaseManifest(root), /neither a release nor a beta/);
+    }
+});
+
+test("rejects a package entry point that lost its executable bit", () => {
+    for (const path of PUBLIC_EXECUTABLES) {
+        const root = fixture();
+        chmodSync(resolve(root, path), 0o644);
+        assert.throws(() => writePublicReleaseManifest(root), /must be executable/);
+    }
 });
