@@ -24,9 +24,62 @@ monorepo's internal Design Kit or contracts packages. The plugin supports Vite
 8, declared as an optional peer so command-only CLI consumers do not install a
 frontend build tool they never use.
 
-Run `1c --help` for the command reference: `init`, `pull`, `push`, `status`
-and `typegen`. `1c typegen` writes its typed names for each adapter your
+Run `1c --help` for the command reference: `connect`, `init`, `pull`, `push`,
+`status` and `typegen`. `1c typegen` writes its typed names for each adapter your
 project declares in its `package.json` (`@1consent/nextjs`, `@1consent/react`).
+
+## Connect an AI assistant
+
+The connector is available in `0.2.0` and later. With Node.js 22.12 or newer,
+run it in an interactive terminal.
+
+```sh
+npx @1consent/cli@latest connect
+```
+
+Choose Codex, Claude Code or Cursor and review the selected settings file before
+it changes.
+The connector adds only the `oneconsent` remote HTTP entry. It preserves other
+servers and comments and reports conflicting custom entries for review.
+
+Codex and Claude Code require a current native CLI exposing `mcp login` to sign in.
+The connector checks that capability before changing settings. Their browser
+flow lets a new user create an account, verify identity, accept the Terms/DPA,
+enter a website and approve access. The existing account-setup transaction creates
+the first workspace and site. Cursor completes authentication from Settings →
+Tools & MCP → oneconsent → Connect. No API key or repository checkout is needed.
+
+After authentication, paste the displayed first task into a new assistant
+conversation. It reads the account, selects an authorized site and requests its
+setup plan. Configuration and successful login do not prove that first request
+or the website's consent integration works. The connector does not publish,
+purchase, scan or change a site's configuration.
+
+```sh
+npx @1consent/cli@latest connect --client codex
+npx @1consent/cli@latest connect --client cursor --check
+npx @1consent/cli@latest connect --client codex --remove
+```
+
+`--check` is a read-only configuration check; it does not test authentication.
+For configuration-only scripts, use `--client <codex|claude-code|cursor> --no-login`.
+`--env develop` and `--env local` select the corresponding service environment;
+the default is production. Codex respects an absolute `CODEX_HOME`; Claude Code
+respects an absolute `CLAUDE_CONFIG_DIR`. A project-level `oneconsent` entry can
+override a user connection; review and remove a conflicting project entry before
+connecting. The connector never silently replaces those project settings.
+
+If signup or approval expires, rerun the connector and start login again.
+Cancellation leaves existing settings intact. A saved configuration remains
+available after an unsuccessful login, so retries do not create duplicate entries.
+If interrupted during a settings write, check that no setup process is running
+before removing its `.1consent-lock` file and retrying. Symlinked settings files
+and custom entries require review in the client's settings before editing.
+Removing the local entry does not revoke account access; revoke the connection
+separately in 1Consent's connected-assistant settings.
+
+The adapter and configuration code includes MIT-licensed adaptations from
+PostHog/wizard; see [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
 
 ## Before publication
 

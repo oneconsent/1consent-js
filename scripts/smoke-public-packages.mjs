@@ -129,14 +129,13 @@ try {
     const listedCommands = [...help.matchAll(/^ {2}([a-z-]+)(?: \[|\s{2,})/gm)].map(
         (match) => match[1],
     );
-    const customerCommands = ["init", "pull", "push", "status", "typegen", "help"];
+    const customerCommands = ["connect", "init", "pull", "push", "status", "typegen", "help"];
     if (listedCommands.join(" ") !== customerCommands.join(" ")) {
         throw new Error(
             `Installed CLI help must list only customer commands; listed: ${listedCommands.join(", ")}`,
         );
     }
-    // The official system publisher is repository-only and `mcp`/`validate`
-    // ship in 0.2.0: the installed CLI has none of these commands.
+    // The system publisher and offline validation commands are repository-only.
     for (const systemCommand of ["push-system", "publish", "mcp", "validate"]) {
         const attempt = spawnSync(
             resolve(consumerDir, "node_modules/.bin/1c"),
@@ -219,9 +218,9 @@ try {
     ) {
         throw new Error("Installed site check must contain only its reviewed Patchright runtime dependency");
     }
-    // Koffi serves only the MCP adapter, which ships in 0.2.0 (1CO-1376).
+    // Koffi serves the repository-only offline MCP adapter (1CO-1376).
     if (installedCli.dependencies !== undefined) {
-        throw new Error("Installed CLI 0.1.0 must have no runtime dependencies");
+        throw new Error("The installed public CLI must have no runtime dependencies");
     }
     if (
         installedCli.peerDependencies?.vite !== ">=8.0.0 <9.0.0" ||

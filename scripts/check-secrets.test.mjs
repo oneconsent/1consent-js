@@ -7,6 +7,7 @@ import test from "node:test";
 import {
     findHighConfidenceSecrets,
     IndexedFileReadError,
+    indexedPaths,
     MAX_TRACKED_BLOB_BYTES,
     readIndexedFile,
 } from "./check-secrets.mjs";
@@ -139,6 +140,31 @@ test("fails closed without exposing blob contents when the safety limit is excee
                 return true;
             },
         );
+    });
+});
+
+test("scans every tracked file, or only the files the next commit adds or changes", () => {
+    withTrackedBlob("safe content\n", (cwd, gitEnvironment) => {
+        const git = (...args) => execFileSync("git", args, { cwd, env: gitEnvironment });
+        git("-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "--quiet", "-m", "base");
+        writeFileSync(join(cwd, "added.txt"), "new\n");
+        writeFileSync(join(cwd, "large.txt"), "changed\n");
+        writeFileSync(join(cwd, "unstaged.txt"), "not added\n");
+        git("add", "added.txt", "large.txt");
+
+        assert.deepEqual(indexedPaths("staged", cwd, gitEnvironment).sort(), [
+            "added.txt",
+            "large.txt",
+        ]);
+        assert.deepEqual(indexedPaths("all", cwd, gitEnvironment).sort(), [
+            "added.txt",
+            "large.txt",
+        ]);
+        git("rm", "--quiet", "--cached", "large.txt");
+        assert.deepEqual(indexedPaths("staged", cwd, gitEnvironment), ["added.txt"]);
+        git("reset", "--quiet");
+        git("mv", "large.txt", "renamed.txt");
+        assert.deepEqual(indexedPaths("staged", cwd, gitEnvironment), ["renamed.txt"]);
     });
 });
 

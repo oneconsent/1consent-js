@@ -683,11 +683,15 @@ for (const [label, environment] of [
     });
 }
 
+// Git sets GIT_DIR and friends inside hooks. Scratch repositories must not inherit them, or
+// git acts on the repository being pushed instead (2026-11-23).
+const fixtureEnv = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_")));
+
 for (const operation of ["verify", "publish", "wrong-publish-commit"]) {
     test(`the real commit gate binds the selected tag for ${operation}`, () => {
         const directory = mkdtempSync(resolve(tmpdir(), "1consent-tag-commit-"));
         const git = (...args: string[]) =>
-            execFileSync("git", args, { cwd: directory, encoding: "utf8" }).trim();
+            execFileSync("git", args, { cwd: directory, encoding: "utf8", env: fixtureEnv }).trim();
         try {
             git("init", "--quiet", "--initial-branch=main");
             git(
@@ -729,7 +733,7 @@ for (const operation of ["verify", "publish", "wrong-publish-commit"]) {
                     cwd: directory,
                     encoding: "utf8",
                     env: {
-                        ...process.env,
+                        ...fixtureEnv,
                         GITHUB_OUTPUT: output,
                         OPERATION: operation === "verify" ? "verify" : "publish",
                         GITHUB_SHA: operation === "publish" ? releaseCommit : verifierCommit,

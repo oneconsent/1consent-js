@@ -28,7 +28,7 @@
  * Earlier gate placement reduces activation latency without promising a
  * first-paint deadline.
  */
-import type { ReactNode } from "react";
+import { type ReactNode } from "react";
 import type { RegisteredCategoryName, RegisteredServiceName } from "./types.js";
 interface BaseProps {
     /** CSP nonce for the inline parse-time resolve call. */

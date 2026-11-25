@@ -40,6 +40,14 @@ function normalizeSupportedLocale(value) {
     return canonical;
   throw new Error("[Locale] Normalization requires a validated BCP 47 locale tag.");
 }
+function nativeLanguageName(code) {
+  const [language = code] = code.split("-");
+  try {
+    return new Intl.DisplayNames([language], { type: "language" }).of(language) ?? code;
+  } catch {
+    return code;
+  }
+}
 
 // ../../contracts/dist/runtime-config-data.js
 var ANALYTICS_MAX_TIME_TO_CONSENT_MS = 24 * 60 * 60 * 1e3;
@@ -19799,10 +19807,15 @@ var ServiceDefinitionSchema = external_exports.object({
 });
 var MspaModeSchema = external_exports.enum(["not_covered", "service_provider", "opt_out"]);
 var MinorsPostureSchema = external_exports.enum(["general_audience", "known_minors"]);
+var UsSensitiveDataModelSchema = external_exports.enum(["opt_in_where_required", "limit_everywhere"]);
+var UsOptOutDurationSchema = external_exports.enum(["until_changed", "expires_with_record"]);
 var UsFrameworkSettingsSchema = external_exports.object({
   doNotSellLinkUrl: external_exports.string().optional(),
   sensitivePIInUse: external_exports.boolean().optional(),
+  sensitiveDataModel: UsSensitiveDataModelSchema.optional(),
+  optOutDuration: UsOptOutDurationSchema.optional(),
   denyAll: external_exports.boolean().optional(),
+  requireOptionalConsent: external_exports.boolean().optional(),
   mspaMode: MspaModeSchema.optional(),
   minorsPosture: MinorsPostureSchema.optional(),
   stateGeo: external_exports.boolean().optional()
@@ -19868,9 +19881,20 @@ var THEME_BUTTON_STYLES = ["filled", "outline"];
 function isInvalidThemeOutlineInk(value) {
   return /^(?:inherit|initial|unset|revert|revert-layer)$/i.test(value.trim()) || /\b(?:url|image|image-set|cross-fade|paint|(?:repeating-)?(?:linear|radial|conic)-gradient)\(/i.test(value);
 }
+function themeDrawnMode(config2, mode) {
+  return config2.setup.appearance === "dual" ? mode : "light";
+}
+function drawnThemeModes(config2) {
+  return config2.setup.appearance === "dual" ? ["light", "dark"] : ["light"];
+}
+function themeOutlineInks(config2) {
+  return Object.entries(config2.components.button.variants).flatMap(([name, variant]) => variant?.style === "outline" ? drawnThemeModes(config2).flatMap((mode) => {
+    const ink = resolveAppearance(variant.background, mode);
+    return isInvalidThemeOutlineInk(ink) ? [{ path: `components.button.variants.${name}.background.${mode}`, ink }] : [];
+  }) : []);
+}
 function hasInvalidThemeOutlineInk(config2) {
-  const modes = config2.setup.appearance === "dual" ? ["light", "dark"] : ["light"];
-  return Object.values(config2.components.button.variants).some((variant) => variant?.style === "outline" && modes.some((mode) => isInvalidThemeOutlineInk(resolveAppearance(variant.background, mode))));
+  return themeOutlineInks(config2).length > 0;
 }
 
 // ../../contracts/dist/validators.js
@@ -19900,6 +19924,7 @@ var previewMetadataSchema = external_exports.object({
 var gcmConsentStateSchema = external_exports.enum(["granted", "denied"]);
 var googleConsentModeConfigSchema = external_exports.object({
   mode: external_exports.enum(["basic", "advanced"]),
+  installation: external_exports.literal("gtm").optional(),
   defaults: external_exports.object({
     ad_storage: gcmConsentStateSchema,
     ad_user_data: gcmConsentStateSchema,
@@ -19921,6 +19946,7 @@ var cmpConfigSchema = external_exports.object({
   details: external_exports.string().optional(),
   trigger: external_exports.string().optional(),
   uiData: external_exports.string(),
+  catalogDisplay: external_exports.string().regex(/^[a-f0-9]{64}$/u).optional(),
   serviceDetails: external_exports.string()
 });
 var languagesConfigSchema = external_exports.object({
@@ -19987,6 +20013,7 @@ var runtimeConfigSchema = external_exports.object({
   appearance: appearanceConfigSchema,
   framework: frameworkMetadataSchema.optional(),
   gcm: googleConsentModeConfigSchema.optional(),
+  gtmConsent: googleConsentModeConfigSchema.optional(),
   _preview: previewMetadataSchema.optional()
 });
 var localizedLayerContentSchema = external_exports.object({
@@ -20178,7 +20205,197 @@ var tokenThemeConfigSchema = external_exports.object({
   components: componentTokensSchema,
   brand: brandTokensSchema.optional()
 });
-var persistableTokenThemeConfigSchema = tokenThemeConfigSchema.refine((config2) => !hasInvalidThemeOutlineInk(config2), { message: "[ThemeStyle] Choose a solid Button color before using Outline." });
+var THEME_RADIUS_FUNCTIONS = /* @__PURE__ */ new Set([
+  "abs",
+  "acos",
+  "asin",
+  "atan",
+  "atan2",
+  "calc",
+  "clamp",
+  "cos",
+  "env",
+  "exp",
+  "hypot",
+  "log",
+  "max",
+  "min",
+  "mod",
+  "pow",
+  "rem",
+  "round",
+  "sign",
+  "sin",
+  "sqrt",
+  "tan",
+  "var"
+]);
+var THEME_TOKEN_ERROR = "[ThemeToken] Use a plain CSS value, without url(), comments, !important or extra rules.";
+function isStorableThemeRadius(value) {
+  if (!value.trim() || value.length > 256)
+    return false;
+  if (!/^[A-Za-z0-9 \t.,%+*/()_-]+$/.test(value))
+    return false;
+  if (value.includes("/*") || value.includes("*/") || /\)[A-Za-z0-9]/.test(value))
+    return false;
+  let depth = 0;
+  for (const character of value) {
+    if (character === "(")
+      depth += 1;
+    if (character === ")")
+      depth -= 1;
+    if (depth < 0)
+      return false;
+  }
+  if (depth !== 0)
+    return false;
+  return [...value.matchAll(/([A-Za-z0-9_-]*)\(/g)].every(([, name]) => !name || THEME_RADIUS_FUNCTIONS.has(name.toLowerCase()));
+}
+var THEME_TOKEN_MAX_LENGTH = 512;
+var THEME_TOKEN_UNSAFE_CHARACTERS = /[;{}<>[\]\\@!]/;
+var THEME_TOKEN_LOADING_FUNCTION = /(?:^|[^a-z0-9_-])(?:-[a-z]+-)?(?:url|src|image|image-set|image-rect|cross-fade|element|paint|expression)\s*\(/i;
+function hasThemeTokenControlCharacter(value) {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code !== 9 && (code < 32 || code === 127))
+      return true;
+  }
+  return false;
+}
+function isStorableThemeCssToken(value, allowQuotes = false) {
+  if (!allowQuotes && /["']/.test(value) || value.length > THEME_TOKEN_MAX_LENGTH || hasThemeTokenControlCharacter(value) || THEME_TOKEN_UNSAFE_CHARACTERS.test(value) || value.includes("/*") || value.includes("*/") || THEME_TOKEN_LOADING_FUNCTION.test(value))
+    return false;
+  let depth = 0;
+  let quote = null;
+  for (const character of value) {
+    if (quote) {
+      if (character === quote)
+        quote = null;
+    } else if (character === '"' || character === "'") {
+      quote = character;
+    } else if (character === "(") {
+      depth += 1;
+    } else if (character === ")") {
+      depth -= 1;
+      if (depth < 0)
+        return false;
+    }
+  }
+  return depth === 0 && quote === null;
+}
+var THEME_TOKEN_ROOTS = ["globals", "colors", "components"];
+var THEME_RADIUS_TOKEN_PATH = /(?:^|\.)globals\.radii\.(?:base|button|card)$/;
+var THEME_FONT_TOKEN_PATH = /(?:^|\.)globals\.typography\.(?:fontFamily|headingFont|buttonFont)$/;
+function isStorableThemeTokenAt(path3, value) {
+  if (THEME_RADIUS_TOKEN_PATH.test(path3))
+    return isStorableThemeRadius(value);
+  return isStorableThemeCssToken(value, THEME_FONT_TOKEN_PATH.test(path3));
+}
+function isThemeTokenBranch(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function heldThemeTokenValues(stored) {
+  return stored.flatMap((value) => isThemeTokenBranch(value) ? [value.light, value.dark] : [value]);
+}
+function storedThemeTokenChild(stored, key, path3) {
+  if (!isThemeTokenBranch(stored))
+    return stored;
+  if ((key === "light" || key === "dark") && "light" in stored && "dark" in stored)
+    return stored;
+  return stored[key] ?? (key === "button" && path3.endsWith("globals.radii") ? stored.base : void 0);
+}
+function unheldThemeTokens(next, stored, path3) {
+  if (typeof next === "string")
+    return heldThemeTokenValues(stored).includes(next) ? [] : [{ path: path3, value: next }];
+  if (!isThemeTokenBranch(next))
+    return [];
+  return Object.entries(next).flatMap(([key, value]) => unheldThemeTokens(value, stored.map((held) => storedThemeTokenChild(held, key, path3)), `${path3}.${key}`));
+}
+function unsafeThemeTokenPaths(next, stored, path3) {
+  return unheldThemeTokens(next, stored, path3).filter((token) => !isStorableThemeTokenAt(token.path, token.value)).map((token) => token.path);
+}
+var storableTokenThemeConfigSchema = tokenThemeConfigSchema.superRefine((config2, context) => {
+  for (const root of THEME_TOKEN_ROOTS)
+    for (const path3 of unsafeThemeTokenPaths(config2[root], [], root))
+      context.addIssue({
+        code: "custom",
+        path: path3.split("."),
+        message: THEME_TOKEN_ERROR
+      });
+});
+var THEME_OUTLINE_ERROR = "[ThemeStyle] Choose a solid Button color before using Outline.";
+var persistableTokenThemeConfigSchema = storableTokenThemeConfigSchema.refine((config2) => !hasInvalidThemeOutlineInk(config2), { message: THEME_OUTLINE_ERROR });
+var updatableTokenThemeConfigSchema = tokenThemeConfigSchema.refine((config2) => !hasInvalidThemeOutlineInk(config2), { message: THEME_OUTLINE_ERROR });
+
+// ../../contracts/dist/theme-corners.js
+var THEME_SURFACE_MAX_RADIUS_PX = 24;
+var THEME_SURFACE_MAX_RADIUS = `${THEME_SURFACE_MAX_RADIUS_PX}px`;
+var THEME_SURFACE_MAX_RADIUS_EM = THEME_SURFACE_MAX_RADIUS_PX / 16;
+var CSS_WIDE_KEYWORDS = /* @__PURE__ */ new Set(["initial", "inherit", "unset", "revert", "revert-layer"]);
+var CSS_COMMENT = /\/\*[\s\S]*?(?:\*\/|$)/gu;
+var CSS_DIMENSION = /^\+?((?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?)([a-z]+|%)?$/iu;
+var CSS_IDENTIFIER = /^[a-z-]+$/iu;
+function isLimitedRadiusPart(part) {
+  if (!part.toLowerCase().startsWith("min("))
+    return false;
+  if (!part.endsWith(`, ${THEME_SURFACE_MAX_RADIUS})`))
+    return false;
+  if (/["'\\]/u.test(part))
+    return false;
+  let depth = 0;
+  for (let index = 0; index < part.length; index += 1) {
+    if (part[index] === "(")
+      depth += 1;
+    if (part[index] === ")")
+      depth -= 1;
+    if (depth === 0 && index > 3)
+      return index === part.length - 1;
+  }
+  return false;
+}
+function limitRadiusPart(part) {
+  if (!part || CSS_IDENTIFIER.test(part) || isLimitedRadiusPart(part))
+    return part;
+  const dimension = CSS_DIMENSION.exec(part);
+  if (dimension) {
+    const value = Number(dimension[1]);
+    const unit = dimension[2]?.toLowerCase();
+    if (value === 0 || unit === void 0)
+      return part;
+    if (unit === "px")
+      return value > THEME_SURFACE_MAX_RADIUS_PX ? THEME_SURFACE_MAX_RADIUS : part;
+    if ((unit === "rem" || unit === "em") && value <= THEME_SURFACE_MAX_RADIUS_EM)
+      return part;
+  }
+  return `min(${part}, ${THEME_SURFACE_MAX_RADIUS})`;
+}
+function limitThemeSurfaceRadius(radius) {
+  let limited = "";
+  let part = "";
+  let depth = 0;
+  for (const character of radius.replace(CSS_COMMENT, " ")) {
+    if (depth === 0 && (character === "/" || /\s/u.test(character))) {
+      limited += limitRadiusPart(part) + character;
+      part = "";
+      continue;
+    }
+    if (character === "(")
+      depth += 1;
+    if (character === ")")
+      depth = Math.max(0, depth - 1);
+    part += character;
+  }
+  return limited + limitRadiusPart(part);
+}
+function surfaceRadiusSource({ base, card }) {
+  const authored = card?.replace(CSS_COMMENT, " ").trim().toLowerCase();
+  return card && authored && !CSS_WIDE_KEYWORDS.has(authored) ? card : base;
+}
+function themeCardRadiusVariable(radii) {
+  const source = surfaceRadiusSource(radii);
+  const limited = limitThemeSurfaceRadius(source);
+  return limited !== source ? limited : radii.card || void 0;
+}
 
 // ../../contracts/dist/theme-resolver-tokens.js
 var BUTTON_VARIABLES = {
@@ -20266,7 +20483,8 @@ function resolveButtonVariantForMode(tokens, mode) {
     activeText: tokens.activeText ?? tokens.text
   };
 }
-function resolveThemeToCSS(config2, mode) {
+function resolveThemeToCSS(config2, requestedMode) {
+  const mode = themeDrawnMode(config2, requestedMode);
   const cssVariables = {};
   cssVariables["--oc-font-family"] = config2.globals.typography.fontFamily;
   if (config2.globals.typography.fontSizeBase) {
@@ -20294,9 +20512,9 @@ function resolveThemeToCSS(config2, mode) {
   if (config2.globals.radii.button) {
     cssVariables["--oc-radius-button"] = config2.globals.radii.button;
   }
-  if (config2.globals.radii.card) {
-    cssVariables["--oc-radius-card"] = config2.globals.radii.card;
-  }
+  const cardRadius = themeCardRadiusVariable(config2.globals.radii);
+  if (cardRadius)
+    cssVariables["--oc-radius-card"] = cardRadius;
   if (config2.globals.spacing?.base) {
     cssVariables["--oc-spacing-base"] = config2.globals.spacing.base;
   }
@@ -20363,7 +20581,7 @@ function resolveThemeToCSS(config2, mode) {
   }
   return {
     version: "3",
-    mode,
+    mode: requestedMode,
     cssVariables
   };
 }
@@ -20505,6 +20723,16 @@ function validateDisclosureResponse(raw) {
     ...obj.domains !== void 0 && { domains },
     ...obj.sdks !== void 0 && { sdks }
   };
+}
+
+// ../../contracts/dist/language-labels.js
+function withNativeLanguageLabels(config2) {
+  const { languages } = config2;
+  const labels = Object.fromEntries(languages.supported.map((code) => [
+    code,
+    languages.labels?.[code] ?? nativeLanguageName(code)
+  ]));
+  return { ...config2, languages: { ...languages, labels } };
 }
 
 // ../../../node_modules/.pnpm/sirv@3.0.2/node_modules/sirv/build.mjs
@@ -24998,7 +25226,13 @@ function createDesignKitPlugin(options = {}) {
                 result = module.default;
               }
               res.writeHead(200, { "Content-Type": "application/json" });
-              res.end(JSON.stringify({ translations: result, themeCSS }));
+              res.end(
+                JSON.stringify({
+                  translations: result,
+                  contentLanguage: locale,
+                  themeCSS
+                })
+              );
             }).catch((err) => {
               console.error(
                 `[Design Kit] Failed to execute locale ${locale}:`,
@@ -25338,7 +25572,8 @@ function createDesignKitPlugin(options = {}) {
       const hasPreviewTrigger = config2.framework.type === "us" || previewAppearance.trigger !== void 0;
       const managedViews = compileCurrentDesign(url2)?.managedViews;
       const patchedConfig = {
-        ...config2,
+        // Served configs name every supported language, as the bootstrap does.
+        ...withNativeLanguageLabels(config2),
         ...showClose !== void 0 ? { showClose } : {},
         ...closeMeans !== void 0 ? { closeMeans } : {},
         appearance: previewAppearance,

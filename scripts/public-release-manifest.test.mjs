@@ -126,6 +126,16 @@ test("accepts reviewed public documentation and asset origins in customer author
     assert.doesNotThrow(() => verifyPublicReleaseManifest(root));
 });
 
+test("accepts the reviewed public MCP endpoint origins from the shared URL table", () => {
+    const root = fixture();
+    writeFileSync(
+        resolve(root, "packages/libs/react/dist/index.js"),
+        'const mcp = ["https://mcp.1consent.local", "https://mcp.1consent.dev", "https://mcp.1consent.app"];\n',
+    );
+    assert.doesNotThrow(() => writePublicReleaseManifest(root));
+    assert.doesNotThrow(() => verifyPublicReleaseManifest(root));
+});
+
 test("does not extend the public documentation allowance to other environments", () => {
     const root = fixture();
     for (const host of ["1consent.dev", "cdn.1consent.dev", "1consent.local", "cdn.1consent.local"]) {

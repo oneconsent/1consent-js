@@ -3,6 +3,16 @@
 Releases of the `sdk` line: `@1consent/react`, `@1consent/nextjs` and `@1consent/cli` release
 together at one version. Release tags are listed in [RELEASING.md](RELEASING.md).
 
+## 0.2.0
+
+- `@1consent/cli`: `npx @1consent/cli@latest connect` sets up the hosted 1Consent MCP
+  connection in Codex, Claude Code or Cursor. It preserves other MCP entries and
+  supports read-only configuration checks with `--check`.
+- `@1consent/react`, `@1consent/nextjs`: `useConsent` reads consent from the hosted
+  CMP after it loads, including integrations without a fast-path configuration.
+  A returning visitor’s saved TCF choice is used only while the TCF router
+  confirms it.
+
 ## 0.1.0
 
 First stable release. `npm install @1consent/react`, `npm install @1consent/nextjs` and
@@ -35,8 +45,8 @@ Changes since `0.1.0-beta.3`:
 - `@1consent/cli`: `1c --help` lists only the customer commands `init`, `pull`, `push`, `status`
   and `typegen`. The package contains only these commands: 1Consent's internal commands for
   publishing its own system designs (`push-system`, `publish`) are no longer part of it, and the
-  offline MCP commands (`mcp`, `validate`) arrive in 0.2.0. The package has no
-  runtime dependencies.
+  offline MCP commands (`mcp`, `validate`) remain repository-only. The package
+  has no runtime dependencies.
 
 ## 0.1.0-beta.3
 

@@ -47,6 +47,7 @@ export const PUBLIC_PACKAGE_FILES = {
     ],
     "packages/libs/cli": [
         "LICENSE",
+        "THIRD_PARTY_NOTICES.md",
         "README.md",
         "dist/cli.js",
         "dist/design-kit/index.d.ts",
@@ -113,6 +114,12 @@ const REVIEWED_1CONSENT_PACKAGE_HOSTS = new Set([
     "dashboard.1consent.app",
     "dashboard.1consent.dev",
     "dashboard.1consent.local",
+    // Public remote MCP endpoint that the developer quickstart tells an assistant
+    // to connect to (1CO-1750). It reaches the public packages through the
+    // shared URL table.
+    "mcp.1consent.app",
+    "mcp.1consent.dev",
+    "mcp.1consent.local",
     "web.cmp.1consent.app",
     "web.cmp.1consent.dev",
     "web.cmp.1consent.local",
