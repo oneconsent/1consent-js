@@ -81,8 +81,17 @@ export function findHighConfidenceSecrets(text) {
     return findings;
 }
 
-function trackedFiles() {
-    return execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" })
+/**
+ * Paths whose indexed bytes are scanned. "all" is every tracked file (pre-push,
+ * CI and publishing). "staged" is only what the next commit adds or changes,
+ * which keeps pre-commit fast; the full scan still runs before every push.
+ */
+export function indexedPaths(scope, cwd = process.cwd(), environment = process.env) {
+    const args =
+        scope === "staged"
+            ? ["diff", "--cached", "--name-only", "-z", "--diff-filter=d"]
+            : ["ls-files", "-z"];
+    return execFileSync("git", args, { cwd, env: environment, encoding: "utf8" })
         .split("\0")
         .filter(Boolean);
 }
@@ -109,7 +118,8 @@ export function readIndexedFile(
 
 function main() {
     const findings = [];
-    for (const path of trackedFiles()) {
+    const scope = process.argv.includes("--staged") ? "staged" : "all";
+    for (const path of indexedPaths(scope)) {
         // Scan the Git index, not the working tree. Pre-commit must inspect the
         // exact bytes being committed even when a developer has since edited
         // the working-tree copy.

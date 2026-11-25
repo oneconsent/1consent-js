@@ -25,7 +25,11 @@ npm install @1consent/react
 - `OneConsent` gates plain script, iframe, pixel, or other intrinsic markup by
   configured service or category.
 - `useConsent(name)` returns whether a service or category currently has
-  consent (`false` until consent is known) and reacts to CMP updates.
+  saved consent (`false` until consent is known) and reacts to CMP updates.
+  Consent is known once the CMP has loaded, with or without the provider. With
+  the provider and generated `fastPathVersions`, a stored choice is known from
+  the first client render. Versions 0.1.0 and earlier report consent only with
+  the provider and a matching `fastPathVersions` entry.
 - `OneConsentServiceMap` and `OneConsentCategoryMap` are declaration-merging
   targets populated by `1c typegen`.
 
@@ -53,6 +57,17 @@ external downloads can finish after paint. The integration does not hold page
 rendering while waiting for vendors. Missing, expired or stale consent remains
 inert until the CMP establishes current permission. SPA gates activate through
 the inline engine's observer after mounting; they have no initial-paint promise.
+
+## Trusted Types
+
+On a page that enforces Trusted Types (`require-trusted-types-for 'script'`),
+the provider and `OneConsent` insert the CMP embed, the inline engine and
+gated markup through a policy named `1consent`. Every 1Consent script creates
+its own copy of it, so allow it in the page's Content-Security-Policy with
+`trusted-types 1consent 'allow-duplicates'`, next to your own policy names
+(`'allow-duplicates'` then applies to every name in that list). A
+`dangerouslySetInnerHTML` string inside `OneConsent` keeps the gate's markup an
+untrusted string; pass `TrustedHTML` from your own policy there.
 
 ## Before publication
 
