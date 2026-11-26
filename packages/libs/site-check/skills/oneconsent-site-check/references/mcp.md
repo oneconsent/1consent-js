@@ -1,6 +1,6 @@
 # Catalogue, installation and live release
 
-Identify the exact authorized app with `get_account_context` and `list_scoped_resources`. Ask the user to choose if multiple sites match.
+Identify the exact authorized app in the 1Consent MCP with `get_account_context` and `list_scoped_resources`. Ask the user to choose if multiple sites match. For a missing connection, run `npx @1consent/cli@latest connect` before starting the session. In Claude Code, start a new session and select /mcp → 1Consent → Authenticate.
 
 For enrichment, use `read_services` with `kind: "catalog"`, the selected `appId`, and `input` containing the catalogue query. Search by service name or vendor when the evidence provides one. For hostname-only evidence, read a bounded set of authorized catalogue pages using `input.limit` and `input.offset`, then compare the hostname with returned domain patterns locally. Confirm the matched host boundary and any required path. Keep unmatched origins Unknown and report enrichments separately from the recorded browser evidence.
 

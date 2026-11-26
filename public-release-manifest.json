@@ -4,17 +4,17 @@
     {
       "directory": "packages/libs/react",
       "name": "@1consent/react",
-      "version": "0.3.0"
+      "version": "0.3.1"
     },
     {
       "directory": "packages/libs/nextjs",
       "name": "@1consent/nextjs",
-      "version": "0.3.0"
+      "version": "0.3.1"
     },
     {
       "directory": "packages/libs/cli",
       "name": "@1consent/cli",
-      "version": "0.3.0"
+      "version": "0.3.1"
     },
     {
       "directory": "packages/libs/site-check",
@@ -45,8 +45,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 4034,
-      "sha256": "ba4e64f9d1beefc1619b1caef76f29876b91c6d03f880b00cbc36fa63db66921"
+      "bytes": 4726,
+      "sha256": "fde2d27f9182a33141ee9c2bde150977213945806adb3f5468d707ae9109bd8d"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -66,7 +66,7 @@
     {
       "path": "RELEASING.md",
       "bytes": 6333,
-      "sha256": "b308a3ea801dd9049cc2226f6887a182719c7c83355e2409eea2f38d81fee218"
+      "sha256": "b9f04b03b491f4151325b1b03e41c4f72d1b6824e1158611f352cfeae3c87351"
     },
     {
       "path": "SECURITY.md",
@@ -85,8 +85,8 @@
     },
     {
       "path": "packages/libs/cli/README.md",
-      "bytes": 5117,
-      "sha256": "77c7825818ba517b559be502a7044cd83221548e5713bf0e153ad12a1a464f52"
+      "bytes": 5190,
+      "sha256": "9964751614478e1bbc8cc19509cba517500520588e3375549f06528be3fe3235"
     },
     {
       "path": "packages/libs/cli/THIRD_PARTY_NOTICES.md",
@@ -95,8 +95,8 @@
     },
     {
       "path": "packages/libs/cli/dist/cli.js",
-      "bytes": 952709,
-      "sha256": "249d672cfc724702863ad08725d401fd3edc11631416604e77edeacac9d2dac1"
+      "bytes": 953297,
+      "sha256": "f5076c757c08e622f2e3e5e21b8e24a05582d34d33c22d4cdf481d53bb0d8a7c"
     },
     {
       "path": "packages/libs/cli/dist/design-kit/index.d.ts",
@@ -105,23 +105,23 @@
     },
     {
       "path": "packages/libs/cli/dist/design-kit/index.js",
-      "bytes": 1388351,
-      "sha256": "f238b1e1c8c5846d81f07ba0a0a993ddc60fefd90f05a6518acc669590ceb690"
+      "bytes": 1389078,
+      "sha256": "663d78d7fd69abe5203f93251eac925184c3356082e8966050b753fe0c652341"
     },
     {
       "path": "packages/libs/cli/dist/design-kit/runtime.js",
-      "bytes": 164710,
-      "sha256": "75ebf016ee937e5fc9f1efdd8f82848fc44b921a87d05838443fd5b734c24ceb"
+      "bytes": 165175,
+      "sha256": "778822a3dcbba30bf4387d06fb93fae3b8963f4181e5c73895df214759086e64"
     },
     {
       "path": "packages/libs/cli/dist/design-kit/ui/assets/index.css",
-      "bytes": 106578,
-      "sha256": "5cb954b6cb9ebef89a23543128658655abe0af5967e763ccd415b409d0e4673e"
+      "bytes": 107036,
+      "sha256": "5dde4860ddea6cdd50ac662bb479d0eb2fb22dd765dc3a17e44287a20cfeb71e"
     },
     {
       "path": "packages/libs/cli/dist/design-kit/ui/assets/index.js",
-      "bytes": 468378,
-      "sha256": "651854cf7fd521bb566f7f85c07751895e94c2441587d89319e02fc92fad093d"
+      "bytes": 470255,
+      "sha256": "0d73c8f84cbccb1475d9d60c215c1c18503396dffdba9a1429cd20f596350e4f"
     },
     {
       "path": "packages/libs/cli/dist/design-kit/ui/index.html",
@@ -131,7 +131,7 @@
     {
       "path": "packages/libs/cli/package.json",
       "bytes": 1619,
-      "sha256": "8e2616ae7fd7f6f6da763ae905b2218130d22715f357f0aa927259c55ba63c24"
+      "sha256": "d2f83cdea8f9ac28427368bc2f746c0ebe14fe21439d5a5f055067ad3784a4f2"
     },
     {
       "path": "packages/libs/nextjs/LICENSE",
@@ -186,7 +186,7 @@
     {
       "path": "packages/libs/nextjs/package.json",
       "bytes": 1733,
-      "sha256": "40cfd10ff9f2da4a571d436cebcabb9d3f8356d0457cb7ce2956bf3e61d185ed"
+      "sha256": "725558bb31ac8d6eac8e45d71bdc3d6d04895790f72392ff28e57deaf2d23a20"
     },
     {
       "path": "packages/libs/react/LICENSE",
@@ -246,7 +246,7 @@
     {
       "path": "packages/libs/react/package.json",
       "bytes": 1491,
-      "sha256": "c92c1db4709e70b28f71edbac16571947b91b80887d4e979c6c9cbd84223f727"
+      "sha256": "3385c483b7ca8876f28c3df72d90e3202f9549b5ae18cf3004d6a1e6c1e4a323"
     },
     {
       "path": "packages/libs/site-check/LICENSE",
@@ -260,8 +260,8 @@
     },
     {
       "path": "packages/libs/site-check/dist/site-check.mjs",
-      "bytes": 658470,
-      "sha256": "2257cc882365631451a567b6a13c8f5f625923ab0ac90cc1b40b9167c63e15ca"
+      "bytes": 667966,
+      "sha256": "ae1f37bd372958c13ed73f0a32d1d9bca542d5dcce167e4f72a0f3270d11564a"
     },
     {
       "path": "packages/libs/site-check/package.json",
@@ -280,8 +280,8 @@
     },
     {
       "path": "packages/libs/site-check/skills/oneconsent-site-check/references/mcp.md",
-      "bytes": 1745,
-      "sha256": "bae54ffe489fdb18e39d4c54b0fecf35a7d231b0ae6d6aedabc3111d5b1b4452"
+      "bytes": 1942,
+      "sha256": "edb7e069be05f5e15e32a23f4ead7189899d8a696963b2d2a9cc8e2b90bc7d3b"
     },
     {
       "path": "scripts/check-secrets.mjs",

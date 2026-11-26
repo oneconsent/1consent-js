@@ -52,7 +52,7 @@ A release's version picks its npm channel. The channels are defined once in
 
 | Version | Example tag | npm dist-tag | Protected environment |
 | --- | --- | --- | --- |
-| `<major>.<minor>.<patch>-beta.<n>` | `npm-v0.2.0-beta.0` | `beta` | `npm-beta` |
+| `<major>.<minor>.<patch>-beta.<n>` | `npm-v0.3.0-beta.0` | `beta` | `npm-beta` |
 | `<major>.<minor>.<patch>` | `npm-v0.1.0` | `latest` | `npm-stable` |
 
 The workflow never stages a beta under `latest` or a release under `beta`. Each channel advances

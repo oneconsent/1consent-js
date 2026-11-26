@@ -55,6 +55,9 @@ function nativeLanguageName(code) {
 
 // ../../contracts/dist/runtime-config-data.js
 var ANALYTICS_MAX_TIME_TO_CONSENT_MS = 24 * 60 * 60 * 1e3;
+function isEffectivelyEssential(service) {
+  return service.isEssential === true || service.category?.isEssential === true;
+}
 function isPlainRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -19843,9 +19846,17 @@ var NOTICE_POSITIONS = [
   "center-center",
   "bottom-left",
   "bottom-right",
-  "bottom-center"
+  "bottom-center",
+  "bottom-dock",
+  "bottom-bar"
 ];
-var DETAILS_POSITIONS = [...NOTICE_POSITIONS, "panel-right"];
+var DETAILS_POSITIONS = [
+  "center-center",
+  "bottom-left",
+  "bottom-right",
+  "bottom-center",
+  "panel-right"
+];
 var LOGO_ALIGNMENTS = ["left", "center"];
 var BUTTON_ORDERS = ["accept-first", "reject-first"];
 var BUTTON_ALIGNMENTS = ["left", "right", "center", "full"];
@@ -27517,8 +27528,6 @@ function build_default(dir, opts = {}) {
 }
 
 // src/appearance-preview.ts
-var NOTICE_POSITIONS2 = ["bottom-left", "bottom-center", "bottom-right", "center-center"];
-var DETAILS_POSITIONS2 = [...NOTICE_POSITIONS2, "panel-right"];
 var SPACINGS = ["default", "compact"];
 var LOGO_ALIGNMENTS2 = ["left", "center"];
 var BUTTON_ORDERS2 = ["accept-first", "reject-first"];
@@ -27573,6 +27582,7 @@ var PATCH_KEYS = [
   "categoryToggleType",
   "serviceToggleType",
   "showCategoriesInNotice",
+  "showCategoryPicker",
   "showOverlay",
   "showClose",
   "closeMeans"
@@ -27595,6 +27605,7 @@ function parseAppearancePatch(value) {
     categoryToggleType: oneOf(TOGGLE_TYPES, value.categoryToggleType, "categoryToggleType"),
     serviceToggleType: oneOf(TOGGLE_TYPES, value.serviceToggleType, "serviceToggleType"),
     showCategoriesInNotice: bool(value.showCategoriesInNotice, "showCategoriesInNotice"),
+    showCategoryPicker: bool(value.showCategoryPicker, "showCategoryPicker"),
     showOverlay: bool(value.showOverlay, "showOverlay"),
     showClose: bool(value.showClose, "showClose"),
     closeMeans: oneOf(CLOSE_MEANS, value.closeMeans, "closeMeans")
@@ -27604,7 +27615,7 @@ function parseAppearancePatch(value) {
     if (!isRecord3(notice)) throw new AppearanceParamError("notice must be an object");
     assertKnownKeys(notice, NOTICE_KEYS, "notice");
     patch.notice = definedEntries({
-      position: oneOf(NOTICE_POSITIONS2, notice.position, "notice.position"),
+      position: oneOf(NOTICE_POSITIONS, notice.position, "notice.position"),
       size: oneOf(SPACINGS, notice.size, "notice.size"),
       logoAlignment: oneOf(LOGO_ALIGNMENTS2, notice.logoAlignment, "notice.logoAlignment"),
       buttonOrder: oneOf(BUTTON_ORDERS2, notice.buttonOrder, "notice.buttonOrder"),
@@ -27630,7 +27641,7 @@ function parseAppearancePatch(value) {
     if (!isRecord3(details)) throw new AppearanceParamError("details must be an object");
     assertKnownKeys(details, DETAILS_KEYS, "details");
     patch.details = definedEntries({
-      position: oneOf(DETAILS_POSITIONS2, details.position, "details.position"),
+      position: oneOf(DETAILS_POSITIONS, details.position, "details.position"),
       size: oneOf(SPACINGS, details.size, "details.size")
     });
   }
@@ -30422,6 +30433,7 @@ function compileDesign(design, theme) {
       ...design.managedViews ? { managedViews: design.managedViews } : {},
       program: { version: 1, views: {}, components: {} },
       css: "",
+      additionalViewNames: [],
       errors: [
         {
           message: "No view file found (main.1cl.html or index.1cl.html)",
@@ -30466,6 +30478,7 @@ function compileDesign(design, theme) {
       ...design.managedViews ? { managedViews: design.managedViews } : {},
       program: { version: 1, views: {}, components: {} },
       css: "",
+      additionalViewNames: additionalViews.map((view) => view.name),
       errors: [
         locateError(result.error, partialPreamble, origins, viewHTML, design.viewFile)
       ],
@@ -30509,6 +30522,7 @@ function compileDesign(design, theme) {
     name: design.name,
     ...design.managedViews ? { managedViews: design.managedViews } : {},
     program: mergedProgram,
+    additionalViewNames: additionalViews.map((view) => view.name),
     css: cssParts.join("\n\n"),
     errors,
     warnings,
@@ -31051,7 +31065,22 @@ function parseMockConfigModule(module, source) {
       return [service.id, publicId2];
     })
   );
-  return { ...config2, cmp: { ...config2.cmp, serviceIds } };
+  const categories = new Map(
+    config2.categories.map((category) => [
+      category.id,
+      { isEssential: category.essential === true }
+    ])
+  );
+  return {
+    ...config2,
+    services: config2.services.map(
+      (service) => isEffectivelyEssential({
+        isEssential: service.essential === true,
+        category: categories.get(service.categoryId ?? "")
+      }) ? { ...service, essential: true } : service
+    ),
+    cmp: { ...config2.cmp, serviceIds }
+  };
 }
 function mockServiceDisplayName(module, serviceId2) {
   const locale = isPlainRecord(module) && "default" in module ? module.default : module;
@@ -31082,6 +31111,9 @@ function createMockConfigCache(loadSource) {
         if (config2 === null) remove();
       }, remove);
       return request;
+    },
+    invalidate(framework) {
+      loads.delete(framework);
     },
     clear() {
       loads.clear();
@@ -31295,6 +31327,7 @@ function reportDesigns(root, designs) {
     const compiled = compileDesign(design, null);
     const files = [
       design.viewFile ? "main" : null,
+      ...[...compiled.additionalViewNames].sort(),
       design.styleFile ? "styles" : null,
       design.varsFile ? "vars" : null
     ].filter((file2) => file2 !== null);
@@ -31302,7 +31335,7 @@ function reportDesigns(root, designs) {
       name: design.name,
       framework: design.framework ?? null,
       files,
-      partials: design.partials.length,
+      partials: design.partials.length - compiled.additionalViewNames.length,
       managedViews: design.managedViews !== void 0,
       status: compiled.errors.length > 0 ? "errors" : compiled.warnings.length > 0 ? "warnings" : "ok",
       errors: compiled.errors.map((error62) => reportDiagnostic(root, error62)),
@@ -31511,7 +31544,7 @@ function createDesignKitPlugin(options = {}) {
     name: "1consent-design-kit",
     enforce: "pre",
     configResolved(config2) {
-      workspaceRoot = options.root ?? config2.root;
+      workspaceRoot = fs4.realpathSync(options.root ?? config2.root);
     },
     configureServer(dev) {
       server = dev;
@@ -31519,17 +31552,10 @@ function createDesignKitPlugin(options = {}) {
       const artifactRoot = fs4.existsSync(path3.resolve(dirname, "runtime.js")) ? dirname : path3.resolve(dirname, "../dist");
       const uiDistPath = path3.resolve(artifactRoot, "ui");
       runtimeSource = fs4.readFileSync(path3.resolve(artifactRoot, "runtime.js"), "utf8");
-      const serveUi = build_default(uiDistPath, { dev: true, single: true });
+      const serveUi = build_default(uiDistPath, { dev: true });
+      const uiHtml = fs4.readFileSync(path3.resolve(uiDistPath, "index.html"), "utf8").replace("</head>", '<script type="module" src="/@vite/client"></script></head>');
       dev.middlewares.use(async (req, res, next) => {
         const url2 = new URL(req.url ?? "/", `http://${req.headers.host}`);
-        if (url2.pathname.startsWith("/__design-kit/")) {
-          console.log(
-            "[Design Kit Middleware] req.url:",
-            req.url,
-            "=> url.pathname:",
-            url2.pathname
-          );
-        }
         if (url2.pathname === "/__sandbox") {
           await serveSandboxPage(url2, res);
           return;
@@ -31742,72 +31768,49 @@ function createDesignKitPlugin(options = {}) {
             );
             return;
           }
+          const provider = {
+            key: "example-provider",
+            name: "Example Company Ltd",
+            kind: "service_provider",
+            address: "1 Example Street",
+            privacyContact: "https://provider.example/privacy#contact"
+          };
           const declaration = {
-            parties: [
-              {
-                key: "google-ireland",
-                name: "Google Ireland Limited",
-                kind: "service_provider",
-                address: "Gordon House, Barrow Street, Dublin 4, Ireland",
-                privacyContact: "https://support.google.com/policies/contact/general_privacy_form"
-              }
-            ],
-            purposes: [
-              { key: "analytics", name: "Analytics" },
-              { key: "performance", name: "Performance measurement" },
-              { key: "personalization", name: "Content personalization" }
-            ],
+            parties: [provider],
+            purposes: [{ key: "example-purpose", name: "Example purpose" }],
             dataSources: [],
-            dataCategories: [
-              "IP Address",
-              "Browser Type",
-              "Device Info",
-              "Pages Visited"
-            ],
-            recipients: [
-              { name: "Google Ireland Limited", partyKey: "google-ireland" },
-              { name: "Google LLC (USA)" }
-            ],
-            technologies: ["Cookies", "Pixel Tags", "JavaScript"],
-            processingLocations: [{ name: "Ireland" }, { name: "Finland" }],
-            retention: [{ period: "26 months" }],
-            transfers: [{ destination: "United States", countryCode: "US" }],
+            dataCategories: ["Example information"],
+            recipients: [{ name: provider.name, partyKey: provider.key }],
+            technologies: ["Example technology"],
+            processingLocations: [{ name: "Example processing location" }],
+            retention: [{ period: "Example: 30 days" }],
+            transfers: [],
             deviceStorage: {
-              maximumDuration: "2 years",
+              maximumDuration: "Example: 30 days",
               items: [
                 {
-                  key: "_ga",
+                  key: "example_cookie",
                   type: "cookie",
-                  duration: "2 years",
-                  description: "Distinguishes users."
-                },
-                {
-                  key: "_gid",
-                  type: "cookie",
-                  duration: "24 hours",
-                  description: "Distinguishes users."
-                },
-                {
-                  key: "_gat",
-                  type: "cookie",
-                  duration: "1 minute",
-                  description: "Throttles request rate."
+                  duration: "30 days",
+                  description: "Example cookie description."
                 }
               ]
             },
             links: {
-              privacyPolicyUrl: "https://policies.google.com/privacy",
-              cookiePolicyUrl: "https://policies.google.com/technologies/cookies"
+              privacyPolicyUrl: "https://provider.example/privacy",
+              cookiePolicyUrl: "https://provider.example/cookies"
             },
             legalProfile: {
-              label: "GDPR / ePrivacy",
-              processingGrounds: [{ basis: "consent", label: "Consent" }],
-              partyRoles: [{ partyKey: "google-ireland", role: "processor" }],
-              rights: ["Withdraw consent"]
+              label: "Sample declaration",
+              processingGrounds: [{ basis: "consent", label: "Example legal basis" }],
+              partyRoles: [{ partyKey: provider.key, role: "processor" }],
+              rights: ["Example right"]
             }
           };
-          const provider = declaration.parties[0];
-          if (!provider) throw new Error("Design Kit service mock has no provider");
+          const category = config2.categories.find(
+            (candidate) => candidate.id === service.categoryId
+          );
+          const isEssential = service.essential === true || category?.essential === true;
           res.writeHead(200, {
             "Content-Type": "application/json",
             "Cache-Control": "no-cache"
@@ -31816,10 +31819,11 @@ function createDesignKitPlugin(options = {}) {
             JSON.stringify({
               id: service.id,
               name: serviceName,
-              description: "Web analytics service that tracks and reports website traffic.",
-              categoryName: "Analytics",
-              isEssential: false,
-              requiresConsent: true,
+              description: "Sample declaration. These values are not account data.",
+              categoryId: category?.id,
+              categoryName: category?.name,
+              isEssential,
+              requiresConsent: !isEssential,
               // Match production's compatibility projections so
               // already-published customer templates preview the
               // same contract while `declaration` remains canonical.
@@ -31843,9 +31847,7 @@ function createDesignKitPlugin(options = {}) {
                 processingCountries: declaration.processingLocations.map(
                   (location) => location.name
                 ),
-                transferCountries: declaration.transfers.map(
-                  (transfer) => transfer.destination
-                ),
+                transferCountries: declaration.transfers,
                 retentionPeriod: declaration.retention.map((item) => item.period).join(" / ")
               },
               storage: {
@@ -31906,7 +31908,15 @@ function createDesignKitPlugin(options = {}) {
           "/localized-content",
           "/mock-config"
         ];
-        if (clientRoutes.includes(url2.pathname) || url2.pathname.startsWith("/assets/")) {
+        if (clientRoutes.includes(url2.pathname)) {
+          res.writeHead(200, {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-store"
+          });
+          res.end(uiHtml);
+          return;
+        }
+        if (url2.pathname.startsWith("/assets/")) {
           serveUi(req, res, next);
           return;
         }
@@ -31927,7 +31937,6 @@ function createDesignKitPlugin(options = {}) {
       if (id === "\0@1consent/executor") {
         return `
                 (function() {
-                    console.log('[Design Kit] Loading compiled design...');
                     fetch('/__design-kit/compiled' + window.location.search)
                         .then(res => res.json())
                         .then(data => {
@@ -31963,10 +31972,18 @@ function createDesignKitPlugin(options = {}) {
         return runtimeSource;
       }
     },
-    handleHotUpdate(ctx) {
+    async hotUpdate(ctx) {
+      if (this.environment.name !== "client") return;
       const file2 = ctx.file;
       const rel = path3.relative(workspaceRoot, file2);
-      if (!rel.startsWith("designs/") && !rel.startsWith("themes/")) {
+      const [directory, framework, filename, ...rest] = rel.split(path3.sep);
+      if (directory === "mocks" && framework && filename === "config.ts" && rest.length === 0) {
+        appConfigCache.invalidate(framework);
+        await inspectMockConfig(framework);
+        this.environment.hot.send({ type: "full-reload", path: "*" });
+        return [];
+      }
+      if (directory !== "designs" && directory !== "themes") {
         return;
       }
       const compiled = compileCurrentDesign();
@@ -32140,13 +32157,15 @@ window.__1CONSENT_CONFIG__ = ${inlineJson(patchedConfig, 2)};
         applyThemeWhenReady(initialMode);
 
         window.addEventListener("message", function(e) {
-            if (e.data && e.data.type === "1consent:colorMode") {
+            if (e.source !== window.parent || !e.data) return;
+            if (e.data.type === "1consent:colorMode") {
                 document.documentElement.classList.toggle("dark", e.data.mode === "dark");
                 applyThemeWhenReady(e.data.mode);
             }
         });
     </script>
-    <script type="module">
+    <!-- Keep the request's config inline. Vite caches inline module transforms by URL. -->
+    <script>
         ${bootstrapScript}
     </script>
     <script type="module">
@@ -32157,7 +32176,10 @@ window.__1CONSENT_CONFIG__ = ${inlineJson(patchedConfig, 2)};
 </body>
 </html>`;
     const html = server ? await server.transformIndexHtml(url2.pathname + url2.search, rawHtml) : rawHtml;
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    res.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store"
+    });
     res.end(html);
   }
   function serveCompiled(url2, res) {
