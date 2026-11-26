@@ -3,6 +3,19 @@
 Releases of the `sdk` line: `@1consent/react`, `@1consent/nextjs` and `@1consent/cli` release
 together at one version. Release tags are listed in [RELEASING.md](RELEASING.md).
 
+## 0.3.0
+
+- `@1consent/cli`: `init --local-preview` sets up a Design Kit workspace with sample
+  data and no 1Consent API key. Connected setup masks API key entry.
+- **Design Kit:** The Designs, Themes, Localized Content, and Mock Config screens
+  show workspace files and validation results. Preview supports language
+  selection, bookmarkable URLs, and a mobile settings sheet. Compiler errors point
+  to the source file and line.
+- `@1consent/cli`: `connect` displays the server as `1Consent`, migrates a matching
+  legacy entry, and directs Claude Code users to authenticate through `/mcp`.
+- `@1consent/react` and `@1consent/nextjs` share the release version. Their public APIs
+  are unchanged.
+
 ## 0.2.0
 
 - `@1consent/cli`: `npx @1consent/cli@latest connect` sets up the hosted 1Consent MCP
