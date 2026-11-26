@@ -38,7 +38,8 @@ npm install
 npm run dev
 ```
 
-Place the full design under `designs/<name>/gdpr/`, `designs/<name>/tcf/`, or
+Use MCP `read_design` to get the design’s files and save them to disk. Place the
+full design under `designs/<name>/gdpr/`, `designs/<name>/tcf/`, or
 `designs/<name>/us/`. The local preview uses sample data without a 1Consent API
 key. The Design Kit shows compile results, theme tokens, localized text and mock
 configuration. To pull or push drafts, use connected setup with a key that has

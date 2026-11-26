@@ -3,6 +3,19 @@
 Releases of the `sdk` line: `@1consent/react`, `@1consent/nextjs` and `@1consent/cli` release
 together at one version. Release tags are listed in [RELEASING.md](RELEASING.md).
 
+## 0.3.1
+
+- The Design Kit automatically selects a compatible design when the workspace
+  contains one. The Designs screen lists full design views separately from partials.
+- Local preview shows its viewport dimensions and can start a new visit for
+  the selected banner. Saving a mock config refreshes the preview while
+  preserving the visitor's choice.
+- Mock service details show labeled sample declarations. Services inherit an
+  essential category's consent setting, as in the hosted CMP.
+- The Design Kit renders SVG linear gradients. The CLI guide explains how to
+  export a draft from MCP for a keyless preview.
+- `@1consent/react` and `@1consent/nextjs` share the release version.
+
 ## 0.3.0
 
 - `@1consent/cli`: `init --local-preview` sets up a Design Kit workspace with sample
